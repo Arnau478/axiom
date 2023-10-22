@@ -1,0 +1,12 @@
+body {
+    display: block;
+    margin: 8px;
+}
+
+head, link, meta, script, style, title {
+    display: none;
+}
+
+article, aside, details, div, dt, figcaption, footer, form, header, hgroup, html, main, nav, search, section, summary {
+    display: block;
+}
