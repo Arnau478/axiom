@@ -13,7 +13,12 @@ pub fn parse(source: []const u8) !void {
 }
 
 test {
-    try parse("<b>hello</b>");
+    try parse(
+        \\<!DOCTYPE html>
+        \\<b>
+        \\  hello
+        \\</b>
+    );
     return error.Foo;
 }
 
