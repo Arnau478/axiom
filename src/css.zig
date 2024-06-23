@@ -5,8 +5,9 @@ const std = @import("std");
 pub const Parser = @import("css/Parser.zig");
 pub const Tokenizer = @import("css/Tokenizer.zig");
 pub const Stylesheet = @import("css/Stylesheet.zig");
+pub const Specificity = @import("css/Specificity.zig");
 
-test {
+test "basic rule" {
     var parser = try Parser.fromSource(
         std.testing.allocator,
         \\foo {
@@ -45,6 +46,12 @@ test {
             },
         },
     }, stylesheet);
+
+    try std.testing.expectEqualDeep(Specificity{
+        .a = 0,
+        .b = 0,
+        .c = 1,
+    }, stylesheet.value[0].specificity());
 }
 
 test {

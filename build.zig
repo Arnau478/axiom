@@ -25,4 +25,8 @@ pub fn build(b: *std.Build) void {
 
     _ = html;
     _ = css;
+
+    const test_step = b.step("test", "Run all unit tests");
+    test_step.dependOn(test_html_step);
+    test_step.dependOn(test_css_step);
 }
