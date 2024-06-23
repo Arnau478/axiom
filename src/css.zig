@@ -4,21 +4,47 @@ const std = @import("std");
 
 pub const Parser = @import("css/Parser.zig");
 pub const Tokenizer = @import("css/Tokenizer.zig");
-
-pub fn parse(source: []const u8) !void {
-    var tokenizer = Tokenizer{ .source = source };
-    while (tokenizer.next()) |tok| {
-        std.log.err("{}", .{tok});
-    }
-}
+pub const Stylesheet = @import("css/Stylesheet.zig");
 
 test {
-    try parse(
+    var parser = try Parser.fromSource(
+        std.testing.allocator,
         \\foo {
-        \\    color: red;
+        \\    color: #ff0000;
         \\}
+        ,
     );
-    return error.Foo;
+    defer parser.deinit();
+
+    const stylesheet = try parser.parseStylesheet(null);
+
+    try std.testing.expectEqualDeep(Stylesheet{
+        .location = null,
+        .value = &.{
+            Stylesheet.Rule{
+                .selectors = &.{
+                    Stylesheet.Rule.Selector{
+                        .simple = .{
+                            .element_name = "foo",
+                            .id = null,
+                            .class = &.{},
+                        },
+                    },
+                },
+                .declarations = &.{
+                    Stylesheet.Rule.Declaration{
+                        .property = "color",
+                        .value = .{ .color = .{
+                            .r = 255,
+                            .g = 0,
+                            .b = 0,
+                            .a = 255,
+                        } },
+                    },
+                },
+            },
+        },
+    }, stylesheet);
 }
 
 test {

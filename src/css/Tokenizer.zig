@@ -63,6 +63,11 @@ fn peek(self: Tokenizer) ?u8 {
     return self.source[self.pos];
 }
 
+fn peekAfterN(self: Tokenizer, n: usize) ?u8 {
+    if (self.pos + n >= self.source.len) return null;
+    return self.source[self.pos + n];
+}
+
 fn reconsume(self: *Tokenizer) void {
     self.pos -= 1;
 }
@@ -80,6 +85,40 @@ fn skipWhitespace(self: *Tokenizer) void {
     }
 }
 
+fn isValidEscape(chars: [2]u8) bool {
+    if (chars[0] != '\\') return false;
+
+    if (chars[1] == '\n') return false;
+
+    return true;
+}
+
+fn wouldStartIdentSequence(chars: [3]u8) bool {
+    switch (chars[0]) {
+        0x2D => {
+            switch (chars[1]) {
+                'A'...'Z', 'a'...'z', '_', 0x2D => return true,
+                else => {
+                    if (isValidEscape([_]u8{ chars[1], chars[2] })) {
+                        return true;
+                    }
+
+                    return false;
+                },
+            }
+        },
+        'A'...'Z', 'a'...'z', '_' => return true,
+        '\\' => {
+            if (isValidEscape([_]u8{ chars[0], chars[1] })) {
+                return true;
+            }
+
+            return false;
+        },
+        else => return false,
+    }
+}
+
 pub fn next(self: *Tokenizer) ?Token {
     if (self.consume()) |c| {
         switch (c) {
@@ -88,7 +127,62 @@ pub fn next(self: *Tokenizer) ?Token {
                 return .whitespace;
             },
             '"' => @panic("TODO"),
-            '#' => @panic("TODO"),
+            '#' => {
+                const is_hash = is_hash: {
+                    if (self.peek()) |char_1| {
+                        switch (char_1) {
+                            'A'...'Z', 'a'...'z', '_', '0'...'9', '-' => {
+                                break :is_hash true;
+                            },
+                            else => {},
+                        }
+
+                        if (self.peekAfterN(1)) |char_2| {
+                            if (isValidEscape([_]u8{ char_1, char_2 })) {
+                                break :is_hash true;
+                            }
+                        }
+                    }
+
+                    break :is_hash false;
+                };
+
+                if (is_hash) {
+                    var token = Token{ .hash = .{
+                        .span = undefined,
+                    } };
+
+                    if (self.peek() != null and
+                        self.peekAfterN(1) != null and
+                        self.peekAfterN(2) != null and
+                        wouldStartIdentSequence([_]u8{
+                        self.peek().?,
+                        self.peekAfterN(1).?,
+                        self.peekAfterN(2).?,
+                    })) {
+                        token.hash.type = .id;
+                    }
+
+                    const start = self.pos;
+
+                    while (true) {
+                        if (self.peek()) |ws| {
+                            switch (ws) {
+                                'A'...'Z', 'a'...'z', '_', '0'...'9', '-' => _ = self.consume(),
+                                else => break,
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+
+                    token.hash.span = .{ .start = start, .end = self.pos };
+
+                    return token;
+                } else {
+                    @panic("TODO");
+                }
+            },
             '\'' => @panic("TODO"),
             '(' => @panic("TODO"),
             ')' => @panic("TODO"),
@@ -110,7 +204,7 @@ pub fn next(self: *Tokenizer) ?Token {
                 self.reconsume();
                 return self.identLikeToken();
             },
-            else => @panic("TODO"),
+            else => return .{ .delim = c },
         }
     } else {
         return null;
@@ -122,7 +216,7 @@ fn identLikeToken(self: *Tokenizer) Token {
     while (true) {
         if (self.peek()) |ws| {
             switch (ws) {
-                'A'...'Z', 'a'...'z', '_' => _ = self.consume(),
+                'A'...'Z', 'a'...'z', '_', '0'...'9', '-' => _ = self.consume(),
                 else => break,
             }
         } else {
