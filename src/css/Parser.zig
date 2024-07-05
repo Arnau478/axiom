@@ -57,7 +57,7 @@ fn skipWhitespace(self: *Parser) void {
 pub fn parseStylesheet(self: *Parser, location: ?[]const u8) !Stylesheet {
     return .{
         .location = location,
-        .value = try self.consumeRuleList(true),
+        .rules = try self.consumeRuleList(true),
     };
 }
 

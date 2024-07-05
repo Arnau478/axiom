@@ -21,7 +21,7 @@ test "basic rule" {
 
     try std.testing.expectEqualDeep(Stylesheet{
         .location = null,
-        .value = &.{
+        .rules = &.{
             Stylesheet.Rule{
                 .selectors = &.{
                     Stylesheet.Rule.Selector{
@@ -51,7 +51,44 @@ test "basic rule" {
         .a = 0,
         .b = 0,
         .c = 1,
-    }, stylesheet.value[0].specificity());
+    }, stylesheet.rules[0].specificity());
+}
+
+fn expectRender(in: []const u8, out: []const u8) !void {
+    var parser = try Parser.fromSource(std.testing.allocator, in);
+    defer parser.deinit();
+
+    const stylesheet = try parser.parseStylesheet(null);
+
+    var out_list = std.ArrayList(u8).init(std.testing.allocator);
+    defer out_list.deinit();
+
+    try stylesheet.render(out_list.writer());
+
+    try std.testing.expectEqualStrings(out, out_list.items);
+}
+
+fn expectRenderSame(src: []const u8) !void {
+    try expectRender(src, src);
+}
+
+test "basic rendering" {
+    try expectRenderSame(
+        \\foo {
+        \\    color: #ff0000;
+        \\}
+    );
+
+    try expectRender(
+        \\
+        \\
+        \\foo{color: #ff0000;     }
+        \\
+    ,
+        \\foo {
+        \\    color: #ff0000;
+        \\}
+    );
 }
 
 test {
