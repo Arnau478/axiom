@@ -17,7 +17,6 @@ pub const Span = struct {
 
 pub const State = union(enum) {
     data,
-    text,
     tag_open: usize,
     end_tag_open: usize,
     tag_name: struct {
@@ -32,15 +31,38 @@ pub const State = union(enum) {
 };
 
 pub const Token = union(enum) {
-    text: Span,
     doctype: struct {
         span: Span,
         raw_name: Span,
+        public: ?Span,
+        system: ?Span,
+        force_quirks: bool = false,
     },
     start_tag: struct {
         span: Span,
         raw_name: Span,
     },
+    end_tag: struct {
+        span: Span,
+        raw_name: Span,
+    },
+    comment: struct {
+        span: Span,
+    },
+    char: struct {
+        offset: usize,
+
+        pub fn char(self: @This(), source: []const u8) u8 {
+            return source[self.offset];
+        }
+    },
+
+    pub fn span(self: Token) Span {
+        return switch (self) {
+            .char => |c| .{ .start = c.offset, .end = c.offset + 1 },
+            inline else => |t| t.span,
+        };
+    }
 
     pub const Tag = @typeInfo(Token).Union.tag_type;
 };
@@ -78,33 +100,10 @@ pub fn scanToken(self: *Tokenizer) ?Token {
                         '&' => @panic("TODO"),
                         '<' => self.state = .{ .tag_open = self.pos - 1 },
                         0 => @panic("TODO"),
-                        else => {
-                            current_token = .{ .text = .{
-                                .start = self.pos - 1,
-                                .end = undefined,
-                            } };
-                            self.state = .text;
-                        },
+                        else => return .{ .char = .{ .offset = self.pos - 1 } },
                     }
                 } else {
                     return null;
-                }
-            },
-            .text => {
-                const done = if (self.peek()) |c|
-                    switch (c) {
-                        '&', '<', 0 => true,
-                        else => false,
-                    }
-                else
-                    true;
-
-                if (done) {
-                    self.state = .data;
-                    current_token.?.text.end = self.pos;
-                    return current_token;
-                } else {
-                    _ = self.consume();
                 }
             },
             .tag_open => |tag_open| {
@@ -117,7 +116,7 @@ pub fn scanToken(self: *Tokenizer) ?Token {
                             self.state = .{ .tag_name = .{
                                 .end = false,
                                 .tag_start = tag_open,
-                                .name_start = self.pos - 1,
+                                .name_start = self.pos,
                             } };
                         },
                         '?' => @panic("TODO"),
@@ -135,7 +134,7 @@ pub fn scanToken(self: *Tokenizer) ?Token {
                             self.state = .{ .tag_name = .{
                                 .end = true,
                                 .tag_start = end_tag_open,
-                                .name_start = self.pos - 1,
+                                .name_start = self.pos,
                             } };
                         },
                         '>' => @panic("TODO"),
@@ -152,16 +151,33 @@ pub fn scanToken(self: *Tokenizer) ?Token {
                         '/' => @panic("TODO"),
                         '>' => {
                             self.state = .data;
-                            return .{ .start_tag = .{
-                                .span = .{
-                                    .start = tag_name.tag_start,
-                                    .end = self.pos,
-                                },
-                                .raw_name = .{
-                                    .start = tag_name.name_start,
-                                    .end = self.pos - 1,
-                                },
-                            } };
+                            if (tag_name.end) {
+                                return .{
+                                    .end_tag = .{
+                                        .span = .{
+                                            .start = tag_name.tag_start,
+                                            .end = self.pos,
+                                        },
+                                        .raw_name = .{
+                                            .start = tag_name.name_start,
+                                            .end = self.pos - 1,
+                                        },
+                                    },
+                                };
+                            } else {
+                                return .{
+                                    .start_tag = .{
+                                        .span = .{
+                                            .start = tag_name.tag_start,
+                                            .end = self.pos,
+                                        },
+                                        .raw_name = .{
+                                            .start = tag_name.name_start,
+                                            .end = self.pos - 1,
+                                        },
+                                    },
+                                };
+                            }
                         },
                         0 => @panic("TODO"),
                         else => {},
@@ -209,6 +225,8 @@ pub fn scanToken(self: *Tokenizer) ?Token {
                                     .start = self.pos - 1,
                                     .end = undefined,
                                 },
+                                .public = null,
+                                .system = null,
                             } };
 
                             self.state = .doctype_name;

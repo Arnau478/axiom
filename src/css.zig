@@ -2,8 +2,8 @@
 
 const std = @import("std");
 
-pub const Parser = @import("css/Parser.zig");
 pub const Tokenizer = @import("css/Tokenizer.zig");
+pub const Parser = @import("css/Parser.zig");
 pub const Stylesheet = @import("css/Stylesheet.zig");
 pub const Specificity = @import("css/Specificity.zig");
 
@@ -35,12 +35,17 @@ test "basic rule" {
                 .declarations = &.{
                     Stylesheet.Rule.Declaration{
                         .property = "color",
-                        .value = .{ .color = .{
-                            .r = 255,
-                            .g = 0,
-                            .b = 0,
-                            .a = 255,
-                        } },
+                        .value = &.{
+                            Stylesheet.Rule.Declaration.Token{
+                                .color = .{
+                                    .rgb = .{
+                                        .r = 255,
+                                        .g = 0,
+                                        .b = 0,
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -92,5 +97,5 @@ test "basic rendering" {
 }
 
 test {
-    _ = std.testing.refAllDeclsRecursive(@This());
+    std.testing.refAllDeclsRecursive(@This());
 }

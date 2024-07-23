@@ -205,9 +205,19 @@ fn consumeDeclaration(self: *Parser) !?Stylesheet.Rule.Declaration {
 
                 self.skipWhitespace();
 
+                var decl_tokens = std.ArrayList(Stylesheet.Rule.Declaration.Token).init(self.arena.allocator());
+
+                while (self.peekToken() != null and self.peekToken().? != .semicolon) {
+                    try decl_tokens.append(self.consumeDeclarationToken());
+                }
+
+                if (decl_tokens.items.len == 0) {
+                    @panic("TODO");
+                }
+
                 return .{
                     .property = property_name,
-                    .value = self.consumeValue(),
+                    .value = try decl_tokens.toOwnedSlice(),
                 };
             },
             else => @panic("TODO"),
@@ -297,29 +307,28 @@ fn consumeSimpleSelector(self: *Parser) !Stylesheet.Rule.Selector.Simple {
     return selector;
 }
 
-fn consumeValue(self: *Parser) Stylesheet.Value {
+fn consumeDeclarationToken(self: *Parser) Stylesheet.Rule.Declaration.Token {
     if (self.consumeToken()) |token| {
         switch (token) {
             .hash => |hash| {
-                // Format: 0xRRGGBBAA
-                const hex: u32 = switch (hash.span.slice(self.source).len) {
+                // Format: 0xRRGGBB
+                const hex: u24 = switch (hash.span.slice(self.source).len) {
                     3 => @panic("TODO"),
-                    4 => @panic("TODO"),
-                    6 => (@as(u32, std.fmt.parseInt(
+                    6 => std.fmt.parseInt(
                         u24,
                         hash.span.slice(self.source),
                         16,
-                    ) catch @panic("TODO")) << 8) | 0xFF,
-                    8 => @panic("TODO"),
+                    ) catch @panic("TODO"),
                     else => @panic("TODO"),
                 };
 
                 return .{
                     .color = .{
-                        .r = @truncate(hex >> 24),
-                        .g = @truncate(hex >> 16),
-                        .b = @truncate(hex >> 8),
-                        .a = @truncate(hex),
+                        .rgb = .{
+                            .r = @truncate(hex >> 16),
+                            .g = @truncate(hex >> 8),
+                            .b = @truncate(hex),
+                        },
                     },
                 };
             },
