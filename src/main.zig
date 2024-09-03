@@ -68,6 +68,10 @@ pub fn main() !void {
 
     var last_ns = std.time.nanoTimestamp();
 
+    const example = try engine.fetch.fetch(allocator, "http://example.org");
+    defer allocator.free(example);
+    std.log.debug("{s}", .{example});
+
     while (!window.shouldClose()) {
         const win_size = window.getSize();
         gc.viewport_size.w = @floatFromInt(win_size.width);
