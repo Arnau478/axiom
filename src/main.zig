@@ -6,22 +6,25 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const renderer = engine.Renderer.init(allocator, .{});
-    defer renderer.deinit();
+    var dom = engine.Dom.init(allocator);
+    defer dom.deinit();
 
-    const surface = try renderer.createSurface(300, 200);
-    defer surface.deinit();
+    const document = try dom.createDocument();
 
-    surface.draw(&.{
-        .{ .clear = .{ .r = 76, .g = 109, .b = 49 } },
-    });
+    const doctype = try dom.createDocumentType("html");
+    try dom.appendToDocument(document, .{ .document_type = doctype });
 
-    const pixels = try surface.readPixelsAlloc(allocator, .rgb);
-    defer allocator.free(pixels);
+    const html_element = try dom.createElement("html");
+    try dom.appendToDocument(document, .{ .element = html_element });
+    const head_element = try dom.createElement("head");
+    try dom.appendChild(html_element, .{ .element = head_element });
+    const body_element = try dom.createElement("body");
+    try dom.appendChild(html_element, .{ .element = body_element });
 
-    const output = try std.fs.cwd().createFile("output.ppm", .{});
-    defer output.close();
+    const title_element = try dom.createElement("title");
+    try dom.appendChild(head_element, .{ .element = title_element });
+    const title_text = try dom.createText("Hello world");
+    try dom.appendChild(title_element, .{ .text = title_text });
 
-    try output.writer().print("P6\n{d} {d}\n255\n", .{ surface.width(), surface.height() });
-    try output.writeAll(pixels);
+    try dom.printDocument(document, std.io.getStdOut().writer());
 }
