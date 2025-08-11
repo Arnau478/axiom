@@ -3,7 +3,6 @@ const std = @import("std");
 // https://www.w3.org/TR/css-syntax-3
 
 pub const TokenType = enum {
-    whitespace,
     ident,
     function,
     at_keyword,
@@ -15,6 +14,7 @@ pub const TokenType = enum {
     percentage,
     cdo,
     cdc,
+    delim,
     colon,
     semicolon,
     comma,
@@ -82,10 +82,22 @@ pub const TokenIterator = struct {
         };
     }
 
-    fn startsValidEscape(iter: *TokenIterator) bool {
-        const codepoints = iter.peekCodepoints(2);
-        if (codepoints[0] != '\\') return false;
-        if (codepoints[1] == '\n') return false;
+    fn wouldStartIdentSequence(slice: []const u8) bool {
+        std.debug.assert(std.unicode.utf8CountCodepoints(slice) catch unreachable <= 3);
+        var codepoint_iter: std.unicode.Utf8Iterator = .{ .bytes = slice, .i = 0 };
+
+        return switch (codepoint_iter.peek(1)[0]) {
+            '-' => isIdentStartCodepoint(std.unicode.utf8Decode(codepoint_iter.peek(2)[1..]) catch return false) or
+                codepoint_iter.peek(2)[1] == '-' or
+                isValidEscape(codepoint_iter.peek(3)[1..]),
+            '\\' => isValidEscape(codepoint_iter.peek(2)),
+            else => |codepoint| isIdentStartCodepoint(codepoint),
+        };
+    }
+
+    fn isValidEscape(slice: []const u8) bool {
+        if (slice[0] != '\\') return false;
+        if (slice[1] == '\n') return false;
         return true;
     }
 
@@ -98,27 +110,25 @@ pub const TokenIterator = struct {
         }
     }
 
-    fn identSequence(iter: *TokenIterator) usize {
+    fn identSequence(iter: *TokenIterator) void {
         while (iter.peekCodepoint()) |codepoint| {
             if (isIdentCodepoint(codepoint)) {
                 _ = iter.nextCodepoint().?;
-            } else if (iter.startsValidEscape()) {
+            } else if (isValidEscape(iter.peekCodepoints(2))) {
                 _ = iter.nextCodepoint().?;
                 @panic("TODO");
             } else {
                 break;
             }
         }
-
-        return iter.currentOffset();
     }
 
     fn identLike(iter: *TokenIterator, start: usize) ?Token {
-        const end = iter.identSequence();
+        iter.identSequence();
         var token: Token = .{
             .type = undefined,
             .start = start,
-            .end = end,
+            .end = iter.currentOffset(),
         };
 
         const string = token.slice(iter.getSource());
@@ -151,13 +161,74 @@ pub const TokenIterator = struct {
         return token;
     }
 
+    fn number(iter: *TokenIterator) void {
+        if (iter.peekCodepoint() == '+' or iter.peekCodepoint() == '-') {
+            _ = iter.nextCodepoint().?;
+        }
+
+        while (iter.peekCodepoint() != null and std.ascii.isDigit(iter.peekCodepoints(1)[0])) {
+            _ = iter.nextCodepoint().?;
+        }
+
+        if (iter.peekCodepoint() == '.' and iter.peekCodepoints(2).len > 1 and std.ascii.isDigit(iter.peekCodepoints(2)[1])) {
+            _ = iter.nextCodepoint().?;
+            _ = iter.nextCodepoint().?;
+
+            while (std.ascii.isDigit(iter.peekCodepoints(1)[0])) {
+                _ = iter.nextCodepoint().?;
+            }
+        }
+
+        if (iter.peekCodepoint() == 'e' or iter.peekCodepoint() == 'E') {
+            @panic("TODO");
+        }
+    }
+
+    fn numeric(iter: *TokenIterator, start: usize) ?Token {
+        iter.number();
+
+        if (wouldStartIdentSequence(iter.peekCodepoints(3))) {
+            iter.identSequence();
+
+            return .{
+                .type = .dimension,
+                .start = start,
+                .end = iter.currentOffset(),
+            };
+        } else if (iter.peekCodepoint() == '%') {
+            _ = iter.nextCodepoint().?;
+
+            return .{
+                .type = .percentage,
+                .start = start,
+                .end = iter.currentOffset(),
+            };
+        } else {
+            return .{
+                .type = .number,
+                .start = start,
+                .end = iter.currentOffset(),
+            };
+        }
+    }
+
     pub fn next(iter: *TokenIterator) ?Token {
         iter.skipComments();
 
         const start = iter.currentOffset();
         switch (iter.nextCodepoint() orelse return null) {
             '"' => @panic("TODO"),
-            '#' => @panic("TODO"),
+            '#' => {
+                if (iter.peekCodepoint() != null and (isIdentCodepoint(iter.peekCodepoint().?) or isValidEscape(iter.peekCodepoints(2)))) {
+                    iter.identSequence();
+
+                    return .{
+                        .type = .hash,
+                        .start = start,
+                        .end = iter.currentOffset(),
+                    };
+                } else return .{ .type = .delim, .start = start, .end = iter.currentOffset() };
+            },
             '\'' => @panic("TODO"),
             '(' => @panic("TODO"),
             ')' => @panic("TODO"),
@@ -174,7 +245,7 @@ pub const TokenIterator = struct {
             ']' => return .{ .type = .close_square, .start = start, .end = iter.currentOffset() },
             '{' => return .{ .type = .open_curly, .start = start, .end = iter.currentOffset() },
             '}' => return .{ .type = .close_curly, .start = start, .end = iter.currentOffset() },
-            '0'...'9' => @panic("TODO"),
+            '0'...'9' => return iter.numeric(start),
             else => |codepoint| {
                 if (isIdentStartCodepoint(codepoint)) {
                     return iter.identLike(start);
@@ -183,11 +254,7 @@ pub const TokenIterator = struct {
                         _ = iter.nextCodepoint().?;
                     }
 
-                    return .{
-                        .type = .whitespace,
-                        .start = start,
-                        .end = iter.currentOffset(),
-                    };
+                    return iter.next();
                 } else {
                     @panic("TODO");
                 }
@@ -214,15 +281,11 @@ test "Basic tokenization" {
 
     var iter = tokenIterator(source);
     try std.testing.expectEqualDeep(Token{ .type = .ident, .start = 0, .end = 6 }, iter.next().?);
-    try std.testing.expectEqualDeep(Token{ .type = .whitespace, .start = 6, .end = 7 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .open_curly, .start = 7, .end = 8 }, iter.next().?);
-    try std.testing.expectEqualDeep(Token{ .type = .whitespace, .start = 8, .end = 11 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .ident, .start = 11, .end = 16 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .colon, .start = 16, .end = 17 }, iter.next().?);
-    try std.testing.expectEqualDeep(Token{ .type = .whitespace, .start = 17, .end = 18 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .ident, .start = 18, .end = 21 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .semicolon, .start = 21, .end = 22 }, iter.next().?);
-    try std.testing.expectEqualDeep(Token{ .type = .whitespace, .start = 22, .end = 23 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .close_curly, .start = 23, .end = 24 }, iter.next().?);
     try std.testing.expectEqual(null, iter.next());
 }
