@@ -9,10 +9,6 @@ pub const Number = struct {
     value: f32,
 };
 
-pub const Percentage = struct {
-    value: f32,
-};
-
 pub const Length = struct {
     magnitude: f32,
     unit: Unit,
@@ -20,6 +16,15 @@ pub const Length = struct {
     pub const Unit = enum {
         px,
     };
+};
+
+pub const Percentage = struct {
+    value: f32,
+};
+
+pub const LengthPercentage = union(enum) {
+    length: Length,
+    percentage: Percentage,
 };
 
 pub const Color = struct {
@@ -56,6 +61,25 @@ fn parseLength(source: []const u8, tokens: *[]const css.Token) ?Length {
     } else return null;
 }
 
+fn parsePercentage(source: []const u8, tokens: *[]const css.Token) ?Percentage {
+    if (tokens.len > 0 and tokens.*[0].type == .percentage) {
+        defer tokens.* = tokens.*[1..];
+        const slice = tokens.*[0].slice(source);
+
+        var number_len: usize = 0;
+        while (number_len < slice.len and std.ascii.isDigit(slice[number_len])) {
+            number_len += 1;
+        }
+        if (number_len == 0 or number_len == slice.len) return null;
+
+        // TODO: Non-integers
+
+        return .{
+            .value = std.fmt.parseFloat(f32, slice[0..number_len]) catch return null,
+        };
+    } else return null;
+}
+
 fn parseColor(source: []const u8, tokens: *[]const css.Token) ?Color {
     if (tokens.len > 0 and tokens.*[0].type == .hash) {
         defer tokens.* = tokens.*[1..];
@@ -71,20 +95,38 @@ fn parseColor(source: []const u8, tokens: *[]const css.Token) ?Color {
     } else return null;
 }
 
-pub fn parse(comptime T: type, source: []const u8, all_tokens: []const css.Token) ?T {
+fn parseField(comptime FieldType: type, source: []const u8, tokens: *[]const css.Token) ?FieldType {
+    return switch (FieldType) {
+        Length => parseLength(source, tokens) orelse return null,
+        Percentage => parsePercentage(source, tokens) orelse return null,
+        Color => parseColor(source, tokens) orelse return null,
+        else => switch (@typeInfo(FieldType)) {
+            .@"union" => v: {
+                inline for (comptime std.meta.fieldNames(FieldType)) |union_field| {
+                    const res = parseField(
+                        std.meta.FieldType(FieldType, @field(FieldType, union_field)),
+                        source,
+                        tokens,
+                    ) orelse comptime continue;
+                    break :v @unionInit(FieldType, union_field, res);
+                } else {
+                    return null;
+                }
+            },
+            else => @compileError("Invalid field type: " ++ @typeName(FieldType)),
+        },
+    };
+}
+
+pub fn parse(comptime T: type, source: []const u8, tokens: []const css.Token) ?T {
     std.debug.assert(@typeInfo(T) == .@"struct");
 
-    var tokens = all_tokens;
+    var t = tokens;
     var value: T = undefined;
 
     inline for (comptime std.meta.fieldNames(T)) |field| {
         const FieldType = @TypeOf(@field(value, field));
-
-        @field(value, field) = switch (FieldType) {
-            Length => parseLength(source, &tokens) orelse return null,
-            Color => parseColor(source, &tokens) orelse return null,
-            else => @compileError("Invalid field type: " ++ @typeName(FieldType)),
-        };
+        @field(value, field) = parseField(FieldType, source, &t) orelse return null;
     }
 
     return value;

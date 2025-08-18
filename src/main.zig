@@ -27,4 +27,9 @@ pub fn main() !void {
     try dom.appendChild(title_element, .{ .text = title_text });
 
     try dom.printDocument(document, std.io.getStdOut().writer());
+
+    const declarations = try engine.style.css.parseDeclarationList(allocator, "margin-top: 3px; margin-bottom: 10%;");
+    defer allocator.free(declarations);
+
+    std.log.debug("{any}", .{declarations});
 }

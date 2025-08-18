@@ -1,4 +1,6 @@
 const std = @import("std");
+const value = @import("value.zig");
+const Stylesheet = @import("Stylesheet.zig");
 
 // https://www.w3.org/TR/css-syntax-3
 
@@ -288,4 +290,92 @@ test "Basic tokenization" {
     try std.testing.expectEqualDeep(Token{ .type = .semicolon, .start = 21, .end = 22 }, iter.next().?);
     try std.testing.expectEqualDeep(Token{ .type = .close_curly, .start = 23, .end = 24 }, iter.next().?);
     try std.testing.expectEqual(null, iter.next());
+}
+
+const Parser = struct {
+    allocator: std.mem.Allocator,
+    source: []const u8,
+    token_iter: TokenIterator,
+    reconsumed_token: ?Token,
+
+    fn init(allocator: std.mem.Allocator, source: []const u8) Parser {
+        return .{
+            .allocator = allocator,
+            .source = source,
+            .token_iter = tokenIterator(source),
+            .reconsumed_token = null,
+        };
+    }
+
+    fn consumeToken(parser: *Parser) ?Token {
+        if (parser.reconsumed_token) |token| {
+            parser.reconsumed_token = null;
+            return token;
+        } else {
+            return parser.token_iter.next();
+        }
+    }
+
+    fn reconsumeToken(parser: *Parser, token: Token) void {
+        std.debug.assert(parser.reconsumed_token == null);
+        parser.reconsumed_token = token;
+    }
+
+    fn peekToken(parser: *Parser) ?Token {
+        var iter = parser.token_iter;
+        return iter.next();
+    }
+
+    fn declaration(parser: *Parser) !Stylesheet.Rule.Style.Declaration {
+        const property_token = parser.consumeToken() orelse return error.SyntaxError;
+        if (property_token.type != .ident) return error.SyntaxError;
+        if (parser.peekToken() == null or parser.consumeToken().?.type != .colon) return error.SyntaxError;
+
+        var tokens = std.ArrayList(Token).init(parser.allocator);
+        defer tokens.deinit();
+
+        while (parser.peekToken() != null and parser.peekToken().?.type != .semicolon and parser.peekToken().?.type != .close_curly) {
+            try tokens.append(parser.consumeToken().?);
+        }
+
+        if (parser.peekToken() != null and parser.peekToken().?.type == .semicolon) {
+            _ = parser.consumeToken().?;
+        }
+
+        const property = Stylesheet.Rule.Style.Declaration.Property.byName(property_token.slice(parser.source)) orelse return error.SyntaxError;
+
+        return switch (property) {
+            inline else => |p| return @unionInit(
+                Stylesheet.Rule.Style.Declaration,
+                @tagName(p),
+                value.parse(p.Value(), parser.source, tokens.items) orelse return error.SyntaxError,
+            ),
+        };
+    }
+
+    fn declarationList(parser: *Parser) ![]const Stylesheet.Rule.Style.Declaration {
+        var declarations = std.ArrayList(Stylesheet.Rule.Style.Declaration).init(parser.allocator);
+        errdefer declarations.deinit();
+
+        while (parser.peekToken() != null and parser.peekToken().?.type != .close_curly) {
+            try declarations.append(try parser.declaration());
+        }
+
+        return try declarations.toOwnedSlice();
+    }
+
+    fn stylesheet(parser: *Parser) !Stylesheet {
+        _ = parser;
+        @panic("TODO");
+    }
+};
+
+pub fn parseDeclarationList(allocator: std.mem.Allocator, source: []const u8) ![]const Stylesheet.Rule.Style.Declaration {
+    var parser = Parser.init(allocator, source);
+    return parser.declarationList();
+}
+
+pub fn parseStylesheet(allocator: std.mem.Allocator, source: []const u8) !Stylesheet {
+    var parser = Parser.init(allocator, source);
+    return parser.stylesheet();
 }

@@ -1,6 +1,8 @@
 const Stylesheet = @This();
 
 const std = @import("std");
+const css = @import("css.zig");
+const value = @import("value.zig");
 
 rules: []const Rule,
 
@@ -35,8 +37,40 @@ pub const Rule = union(enum) {
             }
         };
 
-        pub const Declaration = struct {
-            // TODO
+        pub const Declaration = union(Property) {
+            // TODO: Generate this at comptime
+            @"margin-top": Property.@"margin-top".Value(),
+            @"margin-right": Property.@"margin-right".Value(),
+            @"margin-bottom": Property.@"margin-bottom".Value(),
+            @"margin-left": Property.@"margin-left".Value(),
+
+            pub const Property = enum {
+                @"margin-top",
+                @"margin-right",
+                @"margin-bottom",
+                @"margin-left",
+
+                pub fn byName(name: []const u8) ?Property {
+                    for (std.enums.values(Property)) |v| {
+                        if (std.ascii.eqlIgnoreCase(name, @tagName(v))) {
+                            return v;
+                        }
+                    } else {
+                        return null;
+                    }
+                }
+
+                pub fn Value(comptime property: Property) type {
+                    return switch (property) {
+                        .@"margin-top", .@"margin-right", .@"margin-bottom", .@"margin-left" => struct {
+                            value: union(enum) {
+                                length_percentage: value.LengthPercentage,
+                                // TODO: "auto" keyword
+                            },
+                        },
+                    };
+                }
+            };
         };
 
         pub const Specificity = struct {
