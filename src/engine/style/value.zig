@@ -16,21 +16,39 @@ pub const Length = struct {
     pub const Unit = enum {
         px,
     };
+
+    pub fn format(length: Length, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{d}{s}", .{ length.magnitude, @tagName(length.unit) });
+    }
 };
 
 pub const Percentage = struct {
     value: f32,
+
+    pub fn format(percentage: Percentage, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{d}%", .{percentage.value});
+    }
 };
 
 pub const LengthPercentage = union(enum) {
     length: Length,
     percentage: Percentage,
+
+    pub fn format(length_percentage: LengthPercentage, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (length_percentage) {
+            inline else => |v| try v.format(fmt, options, writer),
+        }
+    }
 };
 
 pub const Color = struct {
     r: u8,
     g: u8,
     b: u8,
+
+    pub fn format(color: Color, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("#{x:0>2}{x:0>2}{x:0>2}", .{ color.r, color.g, color.b });
+    }
 };
 
 fn parseLength(source: []const u8, tokens: *[]const css.Token) ?Length {
@@ -45,6 +63,8 @@ fn parseLength(source: []const u8, tokens: *[]const css.Token) ?Length {
         if (magnitude_len == 0 or magnitude_len == slice.len) return null;
 
         // TODO: Non-integers
+
+        // TODO: 0 without unit
 
         const unit = inline for (comptime std.meta.fieldNames(Length.Unit)) |field| {
             if (std.mem.eql(u8, slice[magnitude_len..], field)) {

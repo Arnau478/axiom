@@ -116,31 +116,31 @@ pub const DocumentType = struct {
 };
 
 pub fn getDocument(dom: Dom, id: DocumentId) ?*Document {
-    if (@intFromEnum(id) > dom.documents.items.len) return null;
+    if (@intFromEnum(id) >= dom.documents.items.len) return null;
     return &dom.documents.items[@intFromEnum(id)];
 }
 pub fn getElement(dom: Dom, id: ElementId) ?*Element {
-    if (@intFromEnum(id) > dom.elements.items.len) return null;
+    if (@intFromEnum(id) >= dom.elements.items.len) return null;
     return &dom.elements.items[@intFromEnum(id)];
 }
 
 pub fn getText(dom: Dom, id: TextId) ?*Text {
-    if (@intFromEnum(id) > dom.texts.items.len) return null;
+    if (@intFromEnum(id) >= dom.texts.items.len) return null;
     return &dom.texts.items[@intFromEnum(id)];
 }
 
 pub fn getComment(dom: Dom, id: CommentId) ?*Comment {
-    if (@intFromEnum(id) > dom.comments.items.len) return null;
+    if (@intFromEnum(id) >= dom.comments.items.len) return null;
     return &dom.comments.items[@intFromEnum(id)];
 }
 
 pub fn getAttribute(dom: Dom, id: AttributeId) ?*Attribute {
-    if (@intFromEnum(id) > dom.attributes.items.len) return null;
+    if (@intFromEnum(id) >= dom.attributes.items.len) return null;
     return &dom.attributes.items[@intFromEnum(id)];
 }
 
 pub fn getDocumentType(dom: Dom, id: DocumentTypeId) ?*DocumentType {
-    if (@intFromEnum(id) > dom.document_types.items.len) return null;
+    if (@intFromEnum(id) >= dom.document_types.items.len) return null;
     return &dom.document_types.items[@intFromEnum(id)];
 }
 
@@ -217,6 +217,20 @@ pub fn appendToDocument(dom: *Dom, document_id: DocumentId, child: DocumentChild
     }
 
     try document.children.append(dom.allocator, child);
+}
+
+pub fn addAttribute(dom: *Dom, element: ElementId, attribute: AttributeId) !void {
+    try dom.getElement(element).?.attributes.append(dom.allocator, attribute);
+}
+
+pub fn getElementAttribute(dom: Dom, element: ElementId, name: []const u8) ?[]const u8 {
+    for (dom.getElement(element).?.attributes.items) |attribute| {
+        if (std.mem.eql(u8, dom.getAttribute(attribute).?.name, name)) {
+            return dom.getAttribute(attribute).?.value;
+        }
+    } else {
+        return null;
+    }
 }
 
 pub fn printDocument(dom: Dom, document_id: DocumentId, writer: anytype) !void {

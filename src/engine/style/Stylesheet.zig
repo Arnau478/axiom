@@ -67,6 +67,8 @@ pub const Rule = union(enum) {
                                 length_percentage: value.LengthPercentage,
                                 // TODO: "auto" keyword
                             },
+
+                            pub const initial: @This() = .{ .value = .{ .length_percentage = .{ .length = .{ .magnitude = 0.0, .unit = .px } } } };
                         },
                     };
                 }

@@ -26,10 +26,22 @@ pub fn main() !void {
     const title_text = try dom.createText("Hello world");
     try dom.appendChild(title_element, .{ .text = title_text });
 
+    const div_element = try dom.createElement("div");
+    try dom.appendChild(body_element, .{ .element = div_element });
+
+    const div_element_style_attribute = try dom.createAttribute("style", "margin-top: 3px; margin-bottom: 10%");
+    try dom.addAttribute(div_element, div_element_style_attribute);
+
     try dom.printDocument(document, std.io.getStdOut().writer());
 
-    const declarations = try engine.style.css.parseDeclarationList(allocator, "margin-top: 3px; margin-bottom: 10%;");
-    defer allocator.free(declarations);
+    const style_tree = try engine.style.style(allocator, dom, document);
+    defer style_tree.deinit();
 
-    std.log.debug("{any}", .{declarations});
+    for (style_tree.nodes) |node| {
+        std.log.debug("{}", .{node});
+    }
+
+    for (style_tree.computed_styles) |computed_style| {
+        std.log.debug("{}", .{computed_style});
+    }
 }
