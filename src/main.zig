@@ -29,7 +29,7 @@ pub fn main() !void {
     const div_element = try dom.createElement("div");
     try dom.appendChild(body_element, .{ .element = div_element });
 
-    const div_element_style_attribute = try dom.createAttribute("style", "margin-top: 3px; margin-bottom: 10%");
+    const div_element_style_attribute = try dom.createAttribute("style", "margin-top: 3px; margin-bottom: 10%; margin-left: auto");
     try dom.addAttribute(div_element, div_element_style_attribute);
 
     try dom.printDocument(document, std.io.getStdOut().writer());
@@ -37,11 +37,8 @@ pub fn main() !void {
     const style_tree = try engine.style.style(allocator, dom, document);
     defer style_tree.deinit();
 
-    for (style_tree.nodes) |node| {
-        std.log.debug("{}", .{node});
-    }
+    var layout_tree = try engine.layout.LayoutTree.generate(allocator, style_tree);
+    defer layout_tree.deinit();
 
-    for (style_tree.computed_styles) |computed_style| {
-        std.log.debug("{}", .{computed_style});
-    }
+    std.log.debug("{any}", .{layout_tree.nodes.items});
 }

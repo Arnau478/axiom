@@ -43,12 +43,15 @@ pub const Rule = union(enum) {
             @"margin-right": Property.@"margin-right".Value(),
             @"margin-bottom": Property.@"margin-bottom".Value(),
             @"margin-left": Property.@"margin-left".Value(),
+            display: Property.display.Value(),
 
             pub const Property = enum {
                 @"margin-top",
                 @"margin-right",
                 @"margin-bottom",
                 @"margin-left",
+
+                display,
 
                 pub fn byName(name: []const u8) ?Property {
                     for (std.enums.values(Property)) |v| {
@@ -65,10 +68,30 @@ pub const Rule = union(enum) {
                         .@"margin-top", .@"margin-right", .@"margin-bottom", .@"margin-left" => struct {
                             value: union(enum) {
                                 length_percentage: value.LengthPercentage,
-                                // TODO: "auto" keyword
+                                auto: void,
                             },
 
                             pub const initial: @This() = .{ .value = .{ .length_percentage = .{ .length = .{ .magnitude = 0.0, .unit = .px } } } };
+                        },
+                        .display => struct {
+                            value: enum {
+                                @"inline",
+                                block,
+                                list_item,
+                                inline_block,
+                                table,
+                                inline_table,
+                                table_row_group,
+                                table_header_group,
+                                table_footer_group,
+                                table_row,
+                                table_column_group,
+                                table_column,
+                                table_cell,
+                                table_caption,
+                                none,
+                            },
+                            pub const initial: @This() = .{ .value = .@"inline" };
                         },
                     };
                 }

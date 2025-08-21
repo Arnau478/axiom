@@ -32,11 +32,11 @@ pub fn deinit(tree: StyleTree) void {
 }
 
 pub fn getNode(tree: StyleTree, id: NodeId) ?*Node {
-    if (@intFromEnum(id) > tree.nodes.len) return null;
+    if (@intFromEnum(id) >= tree.nodes.len) return null;
     return &tree.nodes[@intFromEnum(id)];
 }
 
 pub fn getComputedStyle(tree: StyleTree, id: ComputedStyleId) ?*ComputedStyle {
-    if (@intFromEnum(id) > tree.computed_styles.len) return null;
+    if (@intFromEnum(id) >= tree.computed_styles.len) return null;
     return &tree.computed_styles[@intFromEnum(id)];
 }

@@ -73,5 +73,6 @@ fn applyDeclaration(declaration: Stylesheet.Rule.Style.Declaration, computed_sty
         .@"margin-right" => |v| computed_style.margin_right = v,
         .@"margin-bottom" => |v| computed_style.margin_bottom = v,
         .@"margin-left" => |v| computed_style.margin_left = v,
+        .display => |v| computed_style.display = v,
     }
 }

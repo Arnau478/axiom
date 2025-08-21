@@ -115,20 +115,44 @@ fn parseColor(source: []const u8, tokens: *[]const css.Token) ?Color {
     } else return null;
 }
 
-fn parseField(comptime FieldType: type, source: []const u8, tokens: *[]const css.Token) ?FieldType {
+fn parseKeyword(source: []const u8, tokens: *[]const css.Token, name: []const u8) ?void {
+    if (tokens.len > 0 and tokens.*[0].type == .ident) {
+        defer tokens.* = tokens.*[1..];
+        const slice = tokens.*[0].slice(source);
+
+        return if (std.mem.eql(u8, slice, name)) {} else null;
+    } else return null;
+}
+
+fn parseField(comptime FieldType: type, comptime field_name: []const u8, source: []const u8, tokens: *[]const css.Token) ?FieldType {
     return switch (FieldType) {
         Length => parseLength(source, tokens) orelse return null,
         Percentage => parsePercentage(source, tokens) orelse return null,
         Color => parseColor(source, tokens) orelse return null,
+        void => parseKeyword(source, tokens, field_name) orelse return null,
         else => switch (@typeInfo(FieldType)) {
             .@"union" => v: {
                 inline for (comptime std.meta.fieldNames(FieldType)) |union_field| {
                     const res = parseField(
                         std.meta.FieldType(FieldType, @field(FieldType, union_field)),
+                        union_field,
                         source,
                         tokens,
                     ) orelse comptime continue;
                     break :v @unionInit(FieldType, union_field, res);
+                } else {
+                    return null;
+                }
+            },
+            .@"enum" => v: {
+                inline for (comptime std.meta.fieldNames(FieldType)) |enum_field| {
+                    _ = parseField(
+                        void,
+                        enum_field,
+                        source,
+                        tokens,
+                    ) orelse comptime continue;
+                    break :v @field(FieldType, enum_field);
                 } else {
                     return null;
                 }
@@ -146,7 +170,7 @@ pub fn parse(comptime T: type, source: []const u8, tokens: []const css.Token) ?T
 
     inline for (comptime std.meta.fieldNames(T)) |field| {
         const FieldType = @TypeOf(@field(value, field));
-        @field(value, field) = parseField(FieldType, source, &t) orelse return null;
+        @field(value, field) = parseField(FieldType, field, source, &t) orelse return null;
     }
 
     return value;
