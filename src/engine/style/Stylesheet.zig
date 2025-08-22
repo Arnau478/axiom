@@ -3,6 +3,7 @@ const Stylesheet = @This();
 const std = @import("std");
 const css = @import("css.zig");
 const value = @import("value.zig");
+const Dom = @import("../Dom.zig");
 
 rules: []const Rule,
 
@@ -17,7 +18,7 @@ pub const Rule = union(enum) {
             simple: Simple,
 
             pub const Simple = struct {
-                element_name: ?[]const u8,
+                tag_name: ?[]const u8,
                 id: ?[]const u8,
                 class: []const []const u8,
 
@@ -25,14 +26,31 @@ pub const Rule = union(enum) {
                     return .{
                         .a = if (selector.id) |_| 1 else 0,
                         .b = selector.class.len,
-                        .c = if (selector.element_name) |_| 1 else 0,
+                        .c = if (selector.tag_name) |_| 1 else 0,
                     };
+                }
+
+                pub fn matches(selector: Simple, dom: Dom, element: Dom.ElementId) bool {
+                    if (selector.tag_name) |name| {
+                        if (!std.mem.eql(u8, dom.getElement(element).?.tag_name, name)) return false;
+                    }
+
+                    // TODO: Class
+                    // TODO: ID
+
+                    return true;
                 }
             };
 
             pub fn specificity(selector: Selector) Specificity {
                 return switch (selector) {
                     inline else => |s| s.specificity(),
+                };
+            }
+
+            pub fn matches(selector: Selector, dom: Dom, element: Dom.ElementId) bool {
+                return switch (selector) {
+                    inline else => |s| s.matches(dom, element),
                 };
             }
         };
@@ -77,18 +95,18 @@ pub const Rule = union(enum) {
                             value: enum {
                                 @"inline",
                                 block,
-                                list_item,
-                                inline_block,
+                                @"list-item",
+                                @"inline-block",
                                 table,
-                                inline_table,
-                                table_row_group,
-                                table_header_group,
-                                table_footer_group,
-                                table_row,
-                                table_column_group,
-                                table_column,
-                                table_cell,
-                                table_caption,
+                                @"inline-table",
+                                @"table-row_group",
+                                @"table-header_group",
+                                @"table-footer_group",
+                                @"table-row",
+                                @"table-column_group",
+                                @"table-column",
+                                @"table-cell",
+                                @"table-caption",
                                 none,
                             },
                             pub const initial: @This() = .{ .value = .@"inline" };
@@ -134,5 +152,26 @@ pub const Rule = union(enum) {
 
             return res;
         }
+
+        pub fn matches(rule: Style, dom: Dom, element: Dom.ElementId) bool {
+            for (rule.selectors) |selector| {
+                if (selector.matches(dom, element)) return true;
+            }
+
+            return false;
+        }
     };
 };
+
+pub fn deinit(stylesheet: Stylesheet, allocator: std.mem.Allocator) void {
+    for (stylesheet.rules) |rule| {
+        switch (rule) {
+            .style => |r| {
+                allocator.free(r.selectors);
+                allocator.free(r.declarations);
+            },
+        }
+    }
+
+    allocator.free(stylesheet.rules);
+}

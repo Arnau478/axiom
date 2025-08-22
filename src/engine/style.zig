@@ -7,11 +7,13 @@ pub const Stylesheet = @import("style/Stylesheet.zig");
 pub const StyleTree = @import("style/StyleTree.zig");
 pub const ComputedStyle = @import("style/ComputedStyle.zig");
 
-pub fn style(allocator: std.mem.Allocator, dom: Dom, document_id: Dom.DocumentId) !StyleTree {
+pub fn style(allocator: std.mem.Allocator, dom: Dom, document_id: Dom.DocumentId, user_agent_stylesheet: ?Stylesheet) !StyleTree {
     var nodes = std.ArrayList(StyleTree.Node).init(allocator);
+    defer nodes.deinit();
     var computed_styles = std.ArrayList(ComputedStyle).init(allocator);
+    defer computed_styles.deinit();
     const root_element_id = dom.getDocument(document_id).?.element.?;
-    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id);
+    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, user_agent_stylesheet);
 
     return .{
         .allocator = allocator,
@@ -27,12 +29,40 @@ fn styleElement(
     computed_styles: *std.ArrayList(ComputedStyle),
     dom: Dom,
     element_id: Dom.ElementId,
+    user_agent_stylesheet: ?Stylesheet,
 ) !StyleTree.NodeId {
     const raw_children = try allocator.alloc(StyleTree.NodeId, dom.getElement(element_id).?.children.items.len);
     errdefer allocator.free(raw_children);
     var children = raw_children;
 
     var computed_style: ComputedStyle = .{};
+
+    if (user_agent_stylesheet) |stylesheet| {
+        var rules = std.ArrayList(Stylesheet.Rule.Style).init(allocator);
+        defer rules.deinit();
+
+        for (stylesheet.rules) |rule| {
+            switch (rule) {
+                .style => |r| {
+                    if (r.matches(dom, element_id)) {
+                        try rules.append(r);
+                    }
+                },
+            }
+        }
+
+        std.mem.sort(Stylesheet.Rule.Style, rules.items, {}, struct {
+            fn f(_: void, lhs: Stylesheet.Rule.Style, rhs: Stylesheet.Rule.Style) bool {
+                return lhs.specificity().order(rhs.specificity()) == .lt;
+            }
+        }.f);
+
+        for (rules.items) |rule| {
+            for (rule.declarations) |declaration| {
+                applyDeclaration(declaration, &computed_style);
+            }
+        }
+    }
 
     if (dom.getElementAttribute(element_id, "style")) |inline_css| {
         const declarations = try css.parseDeclarationList(allocator, inline_css);
@@ -44,13 +74,14 @@ fn styleElement(
     }
 
     try computed_styles.append(computed_style);
+
     const computed_style_id: StyleTree.ComputedStyleId = @enumFromInt(computed_styles.items.len - 1);
 
     var child_idx: usize = 0;
     for (dom.getElement(element_id).?.children.items) |dom_child| {
         switch (dom_child) {
             .element => {
-                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element);
+                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element, user_agent_stylesheet);
                 child_idx += 1;
             },
             .text, .comment => {},

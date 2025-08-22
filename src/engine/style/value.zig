@@ -133,11 +133,12 @@ fn parseField(comptime FieldType: type, comptime field_name: []const u8, source:
         else => switch (@typeInfo(FieldType)) {
             .@"union" => v: {
                 inline for (comptime std.meta.fieldNames(FieldType)) |union_field| {
+                    var t = tokens.*;
                     const res = parseField(
                         std.meta.FieldType(FieldType, @field(FieldType, union_field)),
                         union_field,
                         source,
-                        tokens,
+                        &t,
                     ) orelse comptime continue;
                     break :v @unionInit(FieldType, union_field, res);
                 } else {
@@ -146,11 +147,12 @@ fn parseField(comptime FieldType: type, comptime field_name: []const u8, source:
             },
             .@"enum" => v: {
                 inline for (comptime std.meta.fieldNames(FieldType)) |enum_field| {
+                    var t = tokens.*;
                     _ = parseField(
                         void,
                         enum_field,
                         source,
-                        tokens,
+                        &t,
                     ) orelse comptime continue;
                     break :v @field(FieldType, enum_field);
                 } else {
@@ -199,4 +201,30 @@ test parse {
         .size = .{ .magnitude = 2.0, .unit = .px },
         .color = .{ .r = 255, .g = 0, .b = 0 },
     }, value);
+}
+
+test "parse enum keywords" {
+    const source = "hello-world";
+
+    var tokens = std.ArrayList(css.Token).init(std.testing.allocator);
+    defer tokens.deinit();
+
+    var iter = css.tokenIterator(source);
+
+    while (iter.next()) |token| {
+        try tokens.append(token);
+    }
+
+    const Value = struct {
+        value: enum {
+            foo,
+            bar,
+            baz,
+            @"hello-world",
+        },
+    };
+
+    const value = parse(Value, source, tokens.items).?;
+
+    try std.testing.expectEqualDeep(.@"hello-world", value.value);
 }

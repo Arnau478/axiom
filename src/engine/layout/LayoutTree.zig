@@ -40,6 +40,7 @@ fn generateForNode(
     style_tree: style.StyleTree,
     style_node: style.StyleTree.NodeId,
 ) !NodeId {
+    std.log.debug("Generating layout tree for {}", .{style_tree.getNode(style_node).?.element});
     const computed_style = style_tree.getComputedStyle(style_tree.getNode(style_node).?.computed_style).?;
     switch (computed_style.display.value) {
         .block, .@"inline" => {
@@ -52,7 +53,10 @@ fn generateForNode(
 
             for (style_tree.getNode(style_node).?.children) |child| {
                 switch (style_tree.getComputedStyle(style_tree.getNode(child).?.computed_style).?.display.value) {
-                    .block => try tree.getNode(node).?.children.append(tree.allocator, try tree.generateForNode(style_tree, child)),
+                    .block => {
+                        const child_id = try tree.generateForNode(style_tree, child);
+                        try tree.getNode(node).?.children.append(tree.allocator, child_id);
+                    },
                     .@"inline" => @panic("TODO"),
                     .none => {},
                     else => @panic("TODO"),

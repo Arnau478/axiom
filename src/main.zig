@@ -6,6 +6,9 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    const user_agent_stylesheet = try engine.style.css.parseStylesheet(allocator, @embedFile("ua.css"));
+    defer user_agent_stylesheet.deinit(allocator);
+
     var dom = engine.Dom.init(allocator);
     defer dom.deinit();
 
@@ -34,11 +37,17 @@ pub fn main() !void {
 
     try dom.printDocument(document, std.io.getStdOut().writer());
 
-    const style_tree = try engine.style.style(allocator, dom, document);
+    for (dom.elements.items, 0..) |element, i| {
+        std.log.debug("{d} -> {s}", .{ i, element.tag_name });
+    }
+
+    const style_tree = try engine.style.style(allocator, dom, document, user_agent_stylesheet);
     defer style_tree.deinit();
 
     var layout_tree = try engine.layout.LayoutTree.generate(allocator, style_tree);
     defer layout_tree.deinit();
 
-    std.log.debug("{any}", .{layout_tree.nodes.items});
+    for (layout_tree.nodes.items) |node| {
+        std.log.debug("{}", .{node});
+    }
 }

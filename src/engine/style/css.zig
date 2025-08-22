@@ -105,9 +105,17 @@ pub const TokenIterator = struct {
 
     fn skipComments(iter: *TokenIterator) void {
         while (std.mem.eql(u8, iter.peekCodepoints(2), "/*")) {
-            const peeked = iter.peekCodepoints(2);
-            while (peeked.len > 0 and !std.mem.eql(u8, peeked, "*/")) {
+            _ = iter.nextCodepoint().?;
+            _ = iter.nextCodepoint().?;
+
+            while (iter.peekCodepoint() != null and !std.mem.eql(u8, iter.peekCodepoints(2), "*/")) {
                 _ = iter.nextCodepoint().?;
+            }
+
+            for (0..2) |_| {
+                if (iter.peekCodepoint() != null) {
+                    _ = iter.nextCodepoint().?;
+                }
             }
         }
     }
@@ -235,7 +243,7 @@ pub const TokenIterator = struct {
             '(' => @panic("TODO"),
             ')' => @panic("TODO"),
             '+' => @panic("TODO"),
-            ',' => @panic("TODO"),
+            ',' => return .{ .type = .comma, .start = start, .end = iter.currentOffset() },
             '-' => @panic("TODO"),
             '.' => @panic("TODO"),
             ':' => return .{ .type = .colon, .start = start, .end = iter.currentOffset() },
@@ -355,7 +363,7 @@ const Parser = struct {
 
     fn declarationList(parser: *Parser) ![]const Stylesheet.Rule.Style.Declaration {
         var declarations = std.ArrayList(Stylesheet.Rule.Style.Declaration).init(parser.allocator);
-        errdefer declarations.deinit();
+        defer declarations.deinit();
 
         while (parser.peekToken() != null and parser.peekToken().?.type != .close_curly) {
             try declarations.append(try parser.declaration());
@@ -364,9 +372,54 @@ const Parser = struct {
         return try declarations.toOwnedSlice();
     }
 
+    fn selector(parser: *Parser) !Stylesheet.Rule.Style.Selector {
+        // TODO: Proper selectors
+        if (parser.peekToken() != null and parser.peekToken().?.type == .ident) {
+            return .{
+                .simple = .{
+                    .tag_name = parser.consumeToken().?.slice(parser.source),
+                    .id = null,
+                    .class = &.{},
+                },
+            };
+        } else return error.SyntaxError;
+    }
+
+    fn rule(parser: *Parser) !Stylesheet.Rule {
+        var selectors = std.ArrayList(Stylesheet.Rule.Style.Selector).init(parser.allocator);
+        defer selectors.deinit();
+
+        try selectors.append(try parser.selector());
+        while (parser.peekToken() != null and parser.peekToken().?.type == .comma) {
+            _ = parser.consumeToken().?;
+            try selectors.append(try parser.selector());
+        }
+
+        if (parser.peekToken() == null or parser.consumeToken().?.type != .open_curly) return error.SyntaxError;
+
+        const declarations = try parser.declarationList();
+
+        if (parser.peekToken() == null or parser.consumeToken().?.type != .close_curly) return error.SyntaxError;
+
+        return .{
+            .style = .{
+                .selectors = try selectors.toOwnedSlice(),
+                .declarations = declarations,
+            },
+        };
+    }
+
     fn stylesheet(parser: *Parser) !Stylesheet {
-        _ = parser;
-        @panic("TODO");
+        var rules = std.ArrayList(Stylesheet.Rule).init(parser.allocator);
+        defer rules.deinit();
+
+        while (parser.peekToken() != null) {
+            try rules.append(try parser.rule());
+        }
+
+        return .{
+            .rules = try rules.toOwnedSlice(),
+        };
     }
 };
 
