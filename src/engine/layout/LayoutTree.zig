@@ -4,7 +4,7 @@ const std = @import("std");
 const style = @import("../style.zig");
 const Box = @import("Box.zig");
 
-const NodeId = enum(usize) { _ };
+pub const NodeId = enum(usize) { _ };
 
 allocator: std.mem.Allocator,
 nodes: std.ArrayListUnmanaged(Node),

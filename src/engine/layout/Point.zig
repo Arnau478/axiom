@@ -9,3 +9,5 @@ pub fn add(lhs: Point, rhs: Point) Point {
         .y = lhs.y + rhs.y,
     };
 }
+
+pub const zero: Point = .{ .x = 0, .y = 0 };

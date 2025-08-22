@@ -17,6 +17,14 @@ pub const Length = struct {
         px,
     };
 
+    pub const zero: Length = .{ .magnitude = 0, .unit = .px };
+
+    pub fn toPx(length: Length) f32 {
+        return switch (length.unit) {
+            .px => length.magnitude,
+        };
+    }
+
     pub fn format(length: Length, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{d}{s}", .{ length.magnitude, @tagName(length.unit) });
     }
@@ -24,6 +32,10 @@ pub const Length = struct {
 
 pub const Percentage = struct {
     value: f32,
+
+    pub fn of(percentage: Percentage, value: f32) f32 {
+        return value * (percentage.value / 100);
+    }
 
     pub fn format(percentage: Percentage, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{d}%", .{percentage.value});

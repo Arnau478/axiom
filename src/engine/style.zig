@@ -73,6 +73,8 @@ fn styleElement(
         }
     }
 
+    computed_style.flush();
+
     try computed_styles.append(computed_style);
 
     const computed_style_id: StyleTree.ComputedStyleId = @enumFromInt(computed_styles.items.len - 1);
@@ -104,6 +106,15 @@ fn applyDeclaration(declaration: Stylesheet.Rule.Style.Declaration, computed_sty
         .@"margin-right" => |v| computed_style.margin_right = v,
         .@"margin-bottom" => |v| computed_style.margin_bottom = v,
         .@"margin-left" => |v| computed_style.margin_left = v,
+        .@"border-top-width" => |v| computed_style.border_top_width = v.compute(),
+        .@"border-right-width" => |v| computed_style.border_right_width = v.compute(),
+        .@"border-bottom-width" => |v| computed_style.border_bottom_width = v.compute(),
+        .@"border-left-width" => |v| computed_style.border_left_width = v.compute(),
+        .@"padding-top" => |v| computed_style.padding_top = v,
+        .@"padding-right" => |v| computed_style.padding_right = v,
+        .@"padding-bottom" => |v| computed_style.padding_bottom = v,
+        .@"padding-left" => |v| computed_style.padding_left = v,
+        .width => |v| computed_style.width = v,
         .display => |v| computed_style.display = v,
     }
 }
