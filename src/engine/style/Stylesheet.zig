@@ -57,6 +57,7 @@ pub const Rule = union(enum) {
 
         pub const Declaration = union(Property) {
             // TODO: Generate this at comptime
+            margin: Property.margin.Value(),
             @"margin-top": Property.@"margin-top".Value(),
             @"margin-right": Property.@"margin-right".Value(),
             @"margin-bottom": Property.@"margin-bottom".Value(),
@@ -74,14 +75,17 @@ pub const Rule = union(enum) {
             display: Property.display.Value(),
 
             pub const Property = enum {
+                margin,
                 @"margin-top",
                 @"margin-right",
                 @"margin-bottom",
                 @"margin-left",
+
                 @"border-top-width",
                 @"border-right-width",
                 @"border-bottom-width",
                 @"border-left-width",
+
                 @"padding-top",
                 @"padding-right",
                 @"padding-bottom",
@@ -104,6 +108,26 @@ pub const Rule = union(enum) {
 
                 pub fn Value(comptime property: Property) type {
                     return switch (property) {
+                        .margin => struct {
+                            value: union(enum) {
+                                one: Value(.@"margin-top"),
+                                two: struct {
+                                    a: Value(.@"margin-top"),
+                                    b: Value(.@"margin-top"),
+                                },
+                                three: struct {
+                                    a: Value(.@"margin-top"),
+                                    b: Value(.@"margin-top"),
+                                    c: Value(.@"margin-top"),
+                                },
+                                four: struct {
+                                    a: Value(.@"margin-top"),
+                                    b: Value(.@"margin-top"),
+                                    c: Value(.@"margin-top"),
+                                    d: Value(.@"margin-top"),
+                                },
+                            },
+                        },
                         .@"margin-top", .@"margin-right", .@"margin-bottom", .@"margin-left" => struct {
                             value: union(enum) {
                                 length_percentage: value.LengthPercentage,

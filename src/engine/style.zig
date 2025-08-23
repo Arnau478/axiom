@@ -102,6 +102,15 @@ fn styleElement(
 
 fn applyDeclaration(declaration: Stylesheet.Rule.Style.Declaration, computed_style: *ComputedStyle) void {
     switch (declaration) {
+        .margin => |margin| switch (margin.value) {
+            .one => |v| {
+                computed_style.margin_top = v;
+                computed_style.margin_right = v;
+                computed_style.margin_bottom = v;
+                computed_style.margin_left = v;
+            },
+            else => @panic("TODO"),
+        },
         .@"margin-top" => |v| computed_style.margin_top = v,
         .@"margin-right" => |v| computed_style.margin_right = v,
         .@"margin-bottom" => |v| computed_style.margin_bottom = v,

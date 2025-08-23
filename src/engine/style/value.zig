@@ -143,6 +143,18 @@ fn parseField(comptime FieldType: type, comptime field_name: []const u8, source:
         Color => parseColor(source, tokens) orelse return null,
         void => parseKeyword(source, tokens, field_name) orelse return null,
         else => switch (@typeInfo(FieldType)) {
+            .@"struct" => v: {
+                inline for (comptime std.meta.fieldNames(FieldType)) |struct_field| {
+                    var value: FieldType = undefined;
+                    @field(value, struct_field) = parseField(
+                        @FieldType(FieldType, struct_field),
+                        struct_field,
+                        source,
+                        tokens,
+                    ) orelse return null;
+                    break :v value;
+                }
+            },
             .@"union" => v: {
                 inline for (comptime std.meta.fieldNames(FieldType)) |union_field| {
                     var t = tokens.*;
