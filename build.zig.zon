@@ -1,0 +1,13 @@
+.{
+    .name = .axiom,
+    .version = "0.1.0",
+    .fingerprint = 0x5a9bbbb18162c374,
+    .minimum_zig_version = "0.14.1",
+    .dependencies = .{
+        .sdl3 = .{
+            .url = "git+https://github.com/Gota7/zig-sdl3#1ee07438a47e64655fd47bf50ef661f25076fe2f",
+            .hash = "sdl3-0.0.1-NmT1Q1HbIABTD_CUyykVfm0QvOypexSjFDSNFYLXD_Zb",
+        },
+    },
+    .paths = .{""},
+}

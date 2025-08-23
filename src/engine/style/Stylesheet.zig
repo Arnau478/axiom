@@ -70,6 +70,7 @@ pub const Rule = union(enum) {
             @"padding-bottom": Property.@"padding-bottom".Value(),
             @"padding-left": Property.@"padding-left".Value(),
             width: Property.width.Value(),
+            height: Property.height.Value(),
             display: Property.display.Value(),
 
             pub const Property = enum {
@@ -87,6 +88,7 @@ pub const Rule = union(enum) {
                 @"padding-left",
 
                 width,
+                height,
 
                 display,
 
@@ -134,7 +136,7 @@ pub const Rule = union(enum) {
 
                             pub const initial: @This() = .{ .value = .{ .length = .zero } };
                         },
-                        .width => struct {
+                        .width, .height => struct {
                             value: union(enum) {
                                 length_percentage: value.LengthPercentage,
                                 auto,

@@ -63,5 +63,16 @@ pub fn doCommand(_: SoftwareRenderer, surface: Surface, command: Renderer.Comman
                 surface.format.encodeColor(color, surface.bufferSlice()[i * surface.format.depth() ..][0..surface.format.depth()]);
             }
         },
+        .simple_rect => |simple_rect| {
+            for (0..simple_rect.height) |y_offset| {
+                const y = simple_rect.y + y_offset;
+
+                for (0..simple_rect.width) |x_offset| {
+                    const x = simple_rect.x + x_offset;
+
+                    surface.format.encodeColor(simple_rect.color, surface.bufferSlice()[(surface.width * y + x) * surface.format.depth() ..][0..surface.format.depth()]);
+                }
+            }
+        },
     }
 }

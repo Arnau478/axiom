@@ -7,8 +7,16 @@ pub fn build(b: *std.Build) void {
 
     const renderer_backend = b.option(@import("src/engine/Renderer/backend.zig").Backend, "renderer_backend", "The renderer backend to use") orelse .software;
 
+    const paint_box_model = b.option(bool, "paint_box_model", "Paint the CSS box model for debugging purposes") orelse false;
+
+    const sdl3_dep = b.dependency("sdl3", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const engine_build_options = b.addOptions();
     engine_build_options.addOption(@TypeOf(renderer_backend), "renderer_backend", renderer_backend);
+    engine_build_options.addOption(bool, "paint_box_model", paint_box_model);
 
     const engine_mod = b.createModule(.{
         .root_source_file = b.path("src/engine/engine.zig"),
@@ -24,6 +32,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe_mod.addImport("sdl3", sdl3_dep.module("sdl3"));
     exe_mod.addImport("engine", engine_mod);
 
     const exe = b.addExecutable(.{

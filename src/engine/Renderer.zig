@@ -45,6 +45,15 @@ pub const PixelFormat = enum {
 
 pub const Command = union(enum) {
     clear: Color,
+    simple_rect: SimpleRect,
+
+    pub const SimpleRect = struct {
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        color: Color,
+    };
 };
 
 impl: Impl,

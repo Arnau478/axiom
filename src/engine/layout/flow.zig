@@ -18,20 +18,6 @@ pub const Position = enum {
     fixed,
 };
 
-fn getDisplay(node: LayoutTree.Node) Display {
-    return switch (node.computed_style.display.value) {
-        .block => .block,
-        .@"inline" => .@"inline",
-        .@"inline-block" => .inline_block,
-        .none => unreachable,
-        else => @panic("TODO"),
-    };
-}
-
-fn getPosition(node: LayoutTree.Node) Position {
-    return std.enums.nameCast(Position, node.computed_style.position.value);
-}
-
 pub fn reflow(tree: LayoutTree, viewport_width: f32) void {
     reflowNode(tree, tree.root, .{ .origin = .zero, .size = .{ .width = viewport_width, .height = 0 } });
 }
@@ -194,6 +180,11 @@ fn reflowChildren(node: *LayoutTree.Node, tree: LayoutTree) void {
 }
 
 fn finalizeNodeDimensions(node: *LayoutTree.Node) void {
-    // TODO: height property
-    _ = node;
+    node.box.content_box.size.height = switch (node.computed_style.height.value) {
+        .length_percentage => |length_percentage| switch (length_percentage) {
+            .length => |length| length.toPx(),
+            .percentage => @panic("TODO"),
+        },
+        .auto => node.box.content_box.size.height,
+    };
 }

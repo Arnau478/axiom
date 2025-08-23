@@ -17,19 +17,8 @@ padding_right: Stylesheet.Rule.Style.Declaration.Property.@"padding-right".Value
 padding_bottom: Stylesheet.Rule.Style.Declaration.Property.@"padding-bottom".Value() = .initial,
 padding_left: Stylesheet.Rule.Style.Declaration.Property.@"padding-left".Value() = .initial,
 width: Stylesheet.Rule.Style.Declaration.Property.width.Value() = .initial,
+height: Stylesheet.Rule.Style.Declaration.Property.height.Value() = .initial,
 display: Stylesheet.Rule.Style.Declaration.Property.display.Value() = .initial,
-
-pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
-    _ = computed_style;
-
-    return .{
-        .margin_top = .initial,
-        .margin_right = .initial,
-        .margin_bottom = .initial,
-        .margin_left = .initial,
-        .display = .initial,
-    };
-}
 
 pub fn flush(computed_style: *ComputedStyle) void {
     if (true) { // TODO: Border style
