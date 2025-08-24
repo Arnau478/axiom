@@ -48,7 +48,7 @@ pub fn main() !void {
     var layout_tree = try engine.layout.LayoutTree.generate(allocator, style_tree);
     defer layout_tree.deinit();
 
-    engine.layout.flow.reflow(layout_tree, 300);
+    engine.layout.reflow(layout_tree, 300);
 
     for (layout_tree.nodes.items) |node| {
         std.log.debug("{}", .{node.box});

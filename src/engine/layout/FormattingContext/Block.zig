@@ -1,38 +1,23 @@
+const Block = @This();
+
 const std = @import("std");
-const Point = @import("Point.zig");
-const Size = @import("Size.zig");
-const Rect = @import("Rect.zig");
-const EdgeSizes = @import("EdgeSizes.zig");
-const LayoutTree = @import("LayoutTree.zig");
+const FormattingContext = @import("../../layout.zig").FormattingContext;
+const Size = @import("../Size.zig");
+const Rect = @import("../Rect.zig");
+const LayoutTree = @import("../LayoutTree.zig");
 
-pub const Display = enum {
-    block,
-    @"inline",
-    inline_block,
-};
-
-pub const Position = enum {
-    static,
-    absolute,
-    relative,
-    fixed,
-};
-
-pub fn reflow(tree: LayoutTree, viewport_width: f32) void {
-    reflowNode(tree, tree.root, .{ .origin = .zero, .size = .{ .width = viewport_width, .height = 0 } });
+pub fn init() Block {
+    return .{};
 }
 
-fn reflowNode(tree: LayoutTree, id: LayoutTree.NodeId, containing_rect: Rect) void {
+pub fn layout(_: Block, tree: LayoutTree, node_id: LayoutTree.NodeId, containing_rect: Rect) void {
     std.debug.assert(containing_rect.size.height == 0);
 
-    const node = tree.getNode(id).?;
+    const node = tree.getNode(node_id).?;
 
     calculateContentWidth(node, containing_rect.size);
-
     positionNode(node, containing_rect);
-
-    reflowChildren(node, tree);
-
+    layoutChildren(node, tree);
     finalizeNodeDimensions(node);
 }
 
@@ -172,10 +157,13 @@ fn positionNode(node: *LayoutTree.Node, containing_rect: Rect) void {
     };
 }
 
-fn reflowChildren(node: *LayoutTree.Node, tree: LayoutTree) void {
+fn layoutChildren(node: *LayoutTree.Node, tree: LayoutTree) void {
     for (node.children.items) |child| {
-        reflowNode(tree, child, node.box.content_box);
-        node.box.content_box.size.height += tree.getNode(child).?.box.marginBox().size.height;
+        const child_node = tree.getNode(child).?;
+        const ctx = FormattingContext.create(child_node.computed_style.display);
+
+        ctx.layout(tree, child, node.box.content_box);
+        node.box.content_box.size.height += child_node.box.marginBox().size.height;
     }
 }
 

@@ -42,32 +42,26 @@ fn generateForNode(
 ) !NodeId {
     std.log.debug("Generating layout tree for {}", .{style_tree.getNode(style_node).?.element});
     const computed_style = style_tree.getComputedStyle(style_tree.getNode(style_node).?.computed_style).?;
-    switch (computed_style.display.value) {
-        .block, .@"inline" => {
-            const node = try tree.addNode(.{
-                .box = undefined,
-                .children = .{},
-                .computed_style = computed_style,
-                .style_node = style_node,
-            });
 
-            for (style_tree.getNode(style_node).?.children) |child| {
-                switch (style_tree.getComputedStyle(style_tree.getNode(child).?.computed_style).?.display.value) {
-                    .block => {
-                        const child_id = try tree.generateForNode(style_tree, child);
-                        try tree.getNode(node).?.children.append(tree.allocator, child_id);
-                    },
-                    .@"inline" => @panic("TODO"),
-                    .none => {},
-                    else => @panic("TODO"),
-                }
-            }
+    std.debug.assert(computed_style.display != .none);
 
-            return node;
-        },
-        .none => @panic("TODO"),
-        else => @panic("TODO"),
+    const node = try tree.addNode(.{
+        .box = undefined,
+        .children = .{},
+        .computed_style = computed_style,
+        .style_node = style_node,
+    });
+
+    for (style_tree.getNode(style_node).?.children) |child| {
+        const child_computed_style = style_tree.getComputedStyle(style_tree.getNode(child).?.computed_style).?;
+
+        if (child_computed_style.display != .none) {
+            const generated_child = try tree.generateForNode(style_tree, child);
+            try tree.getNode(node).?.children.append(tree.allocator, generated_child);
+        }
     }
+
+    return node;
 }
 
 pub fn generate(

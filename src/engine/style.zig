@@ -125,7 +125,7 @@ fn applyDeclaration(declaration: Stylesheet.Rule.Style.Declaration, computed_sty
         .@"padding-left" => |v| computed_style.padding_left = v,
         .width => |v| computed_style.width = v,
         .height => |v| computed_style.height = v,
-        .display => |v| computed_style.display = v,
+        .display => |v| computed_style.display = v.compute(),
         .@"background-color" => |v| computed_style.background_color = v,
     }
 }

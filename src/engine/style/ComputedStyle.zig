@@ -2,6 +2,7 @@ const ComputedStyle = @This();
 
 const style = @import("../style.zig");
 const value = @import("value.zig");
+const layout = @import("../layout.zig");
 const Stylesheet = @import("Stylesheet.zig");
 
 margin_top: Stylesheet.Rule.Style.Declaration.Property.@"margin-top".Value() = .initial,
@@ -18,7 +19,7 @@ padding_bottom: Stylesheet.Rule.Style.Declaration.Property.@"padding-bottom".Val
 padding_left: Stylesheet.Rule.Style.Declaration.Property.@"padding-left".Value() = .initial,
 width: Stylesheet.Rule.Style.Declaration.Property.width.Value() = .initial,
 height: Stylesheet.Rule.Style.Declaration.Property.height.Value() = .initial,
-display: Stylesheet.Rule.Style.Declaration.Property.display.Value() = .initial,
+display: layout.Display = .@"inline",
 background_color: Stylesheet.Rule.Style.Declaration.Property.@"background-color".Value() = .initial,
 
 pub fn flush(computed_style: *ComputedStyle) void {

@@ -3,6 +3,7 @@ const Stylesheet = @This();
 const std = @import("std");
 const css = @import("css.zig");
 const value = @import("value.zig");
+const layout = @import("../layout.zig");
 const Dom = @import("../Dom.zig");
 
 rules: []const Rule,
@@ -189,6 +190,16 @@ pub const Rule = union(enum) {
                                 @"table-caption",
                                 none,
                             },
+
+                            pub fn compute(v: @This()) layout.Display {
+                                return switch (v.value) {
+                                    .@"inline" => .@"inline",
+                                    .block => .block,
+                                    .@"inline-block" => .inline_block,
+                                    else => @panic("TODO"),
+                                    .none => .none,
+                                };
+                            }
 
                             pub const initial: @This() = .{ .value = .@"inline" };
                         },
