@@ -15,7 +15,21 @@ pub fn paint(allocator: std.mem.Allocator, layout_tree: layout.LayoutTree) ![]co
 fn paintNode(layout_tree: layout.LayoutTree, id: layout.LayoutTree.NodeId, commands: *std.ArrayList(Renderer.Command)) !void {
     const node = layout_tree.getNode(id).?;
 
-    // TODO: Background
+    if (node.computed_style.background_color.value.a != 0) {
+        std.debug.assert(node.computed_style.background_color.value.a == 255); // TODO: Transparency
+
+        try commands.append(.{ .simple_rect = .{
+            .x = @intFromFloat(node.box.borderBox().origin.x),
+            .y = @intFromFloat(node.box.borderBox().origin.y),
+            .width = @intFromFloat(node.box.borderBox().size.width),
+            .height = @intFromFloat(node.box.borderBox().size.height),
+            .color = .{
+                .r = node.computed_style.background_color.value.r,
+                .g = node.computed_style.background_color.value.g,
+                .b = node.computed_style.background_color.value.b,
+            },
+        } });
+    }
 
     // TODO: Borders
 

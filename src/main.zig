@@ -33,7 +33,7 @@ pub fn main() !void {
     const div_element = try dom.createElement("div");
     try dom.appendChild(body_element, .{ .element = div_element });
 
-    const div_element_style_attribute = try dom.createAttribute("style", "margin-left: 20px; margin-right: 20px; height: 100px");
+    const div_element_style_attribute = try dom.createAttribute("style", "margin-left: 20px; margin-right: 20px; height: 100px; background-color: red");
     try dom.addAttribute(div_element, div_element_style_attribute);
 
     try dom.printDocument(document, std.io.getStdOut().writer());

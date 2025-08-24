@@ -73,6 +73,7 @@ pub const Rule = union(enum) {
             width: Property.width.Value(),
             height: Property.height.Value(),
             display: Property.display.Value(),
+            @"background-color": Property.@"background-color".Value(),
 
             pub const Property = enum {
                 margin,
@@ -95,6 +96,8 @@ pub const Rule = union(enum) {
                 height,
 
                 display,
+
+                @"background-color",
 
                 pub fn byName(name: []const u8) ?Property {
                     for (std.enums.values(Property)) |v| {
@@ -186,7 +189,13 @@ pub const Rule = union(enum) {
                                 @"table-caption",
                                 none,
                             },
+
                             pub const initial: @This() = .{ .value = .@"inline" };
+                        },
+                        .@"background-color" => struct {
+                            value: value.Color,
+
+                            pub const initial: @This() = .{ .value = value.Color.builtin.transparent };
                         },
                     };
                 }

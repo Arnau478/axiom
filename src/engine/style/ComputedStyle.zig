@@ -19,6 +19,7 @@ padding_left: Stylesheet.Rule.Style.Declaration.Property.@"padding-left".Value()
 width: Stylesheet.Rule.Style.Declaration.Property.width.Value() = .initial,
 height: Stylesheet.Rule.Style.Declaration.Property.height.Value() = .initial,
 display: Stylesheet.Rule.Style.Declaration.Property.display.Value() = .initial,
+background_color: Stylesheet.Rule.Style.Declaration.Property.@"background-color".Value() = .initial,
 
 pub fn flush(computed_style: *ComputedStyle) void {
     if (true) { // TODO: Border style

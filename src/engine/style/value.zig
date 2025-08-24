@@ -57,6 +57,28 @@ pub const Color = struct {
     r: u8,
     g: u8,
     b: u8,
+    a: u8,
+
+    pub const builtin = struct {
+        pub const transparent: Color = .{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00 };
+        pub const maroon: Color = .{ .r = 0x80, .g = 0x00, .b = 0x00, .a = 0xff };
+        pub const red: Color = .{ .r = 0xff, .g = 0x00, .b = 0x00, .a = 0xff };
+        pub const orange: Color = .{ .r = 0xff, .g = 0xa5, .b = 0x00, .a = 0xff };
+        pub const yellow: Color = .{ .r = 0xff, .g = 0xff, .b = 0x00, .a = 0xff };
+        pub const olive: Color = .{ .r = 0x80, .g = 0x80, .b = 0x00, .a = 0xff };
+        pub const purple: Color = .{ .r = 0x80, .g = 0x00, .b = 0x80, .a = 0xff };
+        pub const fuchsia: Color = .{ .r = 0xff, .g = 0x00, .b = 0xff, .a = 0xff };
+        pub const white: Color = .{ .r = 0xff, .g = 0xff, .b = 0xff, .a = 0xff };
+        pub const lime: Color = .{ .r = 0x00, .g = 0xff, .b = 0x00, .a = 0xff };
+        pub const green: Color = .{ .r = 0x00, .g = 0x80, .b = 0x00, .a = 0xff };
+        pub const navy: Color = .{ .r = 0x00, .g = 0x00, .b = 0x80, .a = 0xff };
+        pub const blue: Color = .{ .r = 0x00, .g = 0x00, .b = 0xff, .a = 0xff };
+        pub const aqua: Color = .{ .r = 0x00, .g = 0xff, .b = 0xff, .a = 0xff };
+        pub const teal: Color = .{ .r = 0x00, .g = 0x80, .b = 0x80, .a = 0xff };
+        pub const black: Color = .{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
+        pub const silver: Color = .{ .r = 0xc0, .g = 0xc0, .b = 0xc0, .a = 0xff };
+        pub const gray: Color = .{ .r = 0x80, .g = 0x80, .b = 0x80, .a = 0xff };
+    };
 
     pub fn format(color: Color, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("#{x:0>2}{x:0>2}{x:0>2}", .{ color.r, color.g, color.b });
@@ -123,7 +145,19 @@ fn parseColor(source: []const u8, tokens: *[]const css.Token) ?Color {
             .r = std.fmt.parseInt(u8, slice[1..3], 16) catch return null,
             .g = std.fmt.parseInt(u8, slice[3..5], 16) catch return null,
             .b = std.fmt.parseInt(u8, slice[5..7], 16) catch return null,
+            .a = 255,
         };
+    } else if (tokens.len > 0 and tokens.*[0].type == .ident) {
+        defer tokens.* = tokens.*[1..];
+        const slice = tokens.*[0].slice(source);
+
+        inline for (@typeInfo(Color.builtin).@"struct".decls) |decl| {
+            if (std.mem.eql(u8, slice, decl.name)) {
+                return @field(Color.builtin, decl.name);
+            }
+        } else {
+            return null;
+        }
     } else return null;
 }
 
@@ -223,7 +257,7 @@ test parse {
 
     try std.testing.expectEqualDeep(Value{
         .size = .{ .magnitude = 2.0, .unit = .px },
-        .color = .{ .r = 255, .g = 0, .b = 0 },
+        .color = .{ .r = 255, .g = 0, .b = 0, .a = 255 },
     }, value);
 }
 
