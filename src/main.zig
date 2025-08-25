@@ -1,106 +1,97 @@
 const std = @import("std");
-const sdl3 = @import("sdl3");
 const engine = @import("engine");
+
+const Request = union(enum(u8)) {
+    navigate_to_url: []const u8,
+};
+
+const Response = union(enum(u8)) {};
+
+const ViewChildProcess = struct {
+    child: std.process.Child,
+
+    pub fn init(allocator: std.mem.Allocator) !ViewChildProcess {
+        var process: ViewChildProcess = .{
+            .child = .init(&.{ "/proc/self/exe", "--view-process" }, allocator),
+        };
+
+        process.child.stdin_behavior = .Pipe;
+        process.child.stdout_behavior = .Pipe;
+        process.child.stderr_behavior = .Inherit;
+
+        try process.child.spawn();
+
+        std.log.debug("Created view process {d}", .{process.child.id});
+
+        return process;
+    }
+
+    pub fn kill(process: *ViewChildProcess) void {
+        std.log.debug("Killing view process {d}", .{process.child.id});
+
+        _ = process.child.kill() catch {};
+    }
+
+    fn send(process: ViewChildProcess, request: Request) error{RequestError}!void {
+        process.child.stdin.?.writer().writeByte(0x16) catch return error.RequestError; // SYN
+        process.child.stdin.?.writer().writeByte(@intFromEnum(std.meta.activeTag(request))) catch return error.RequestError;
+
+        switch (request) {
+            .navigate_to_url => |url| {
+                process.child.stdin.?.writer().writeInt(u32, @intCast(url.len), .little) catch return error.RequestError;
+                process.child.stdin.?.writeAll(url) catch return error.RequestError;
+            },
+        }
+    }
+
+    fn recv(process: ViewChildProcess, comptime response_type: std.meta.Tag(Response)) error{InvalidResponse}!@FieldType(Response, @tagName(response_type)) {
+        const ack_byte = process.child.stdout.?.reader().readByte() catch return error.InvalidResponse;
+        if (ack_byte != 0x06) return error.InvalidResponse;
+        const type_byte = process.child.stdout.?.reader().readByte() catch return error.InvalidResponse;
+        if (type_byte != @intFromEnum(response_type)) return error.InvalidResponse;
+
+        switch (response_type) {
+            .navigate_to_url => {},
+        }
+    }
+};
 
 pub fn main() !void {
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .{};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const user_agent_stylesheet = try engine.style.css.parseStylesheet(allocator, @embedFile("ua.css"));
-    defer user_agent_stylesheet.deinit(allocator);
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
 
-    var dom = engine.Dom.init(allocator);
-    defer dom.deinit();
+    // TODO: Proper argument parsing
+    if (args.len == 1) {
+        var view_process = try ViewChildProcess.init(allocator);
+        defer view_process.kill();
+        std.log.debug("Sending navigate request", .{});
+        try view_process.send(.{ .navigate_to_url = "https://example.org" });
+        std.log.debug("Navigate request done", .{});
+        std.time.sleep(std.time.ns_per_s);
+    } else if (args.len == 2 and std.mem.eql(u8, args[1], "--view-process")) {
+        std.log.debug("View process started", .{});
+        while (true) {
+            const stdin = std.io.getStdIn().reader();
+            const stdout = std.io.getStdOut().writer();
+            _ = stdout;
 
-    const document = try dom.createDocument();
+            const syn_byte = try stdin.readByte();
+            if (syn_byte != 0x16) std.process.fatal("Invalid request, expected SYN (0x16), got 0x{x:0>2}", .{syn_byte});
+            const request_type = try stdin.readEnum(std.meta.Tag(Request), .little);
 
-    const doctype = try dom.createDocumentType("html");
-    try dom.appendToDocument(document, .{ .document_type = doctype });
+            switch (request_type) {
+                .navigate_to_url => {
+                    const url_len = try stdin.readInt(u32, .little);
+                    const url = try allocator.alloc(u8, url_len);
+                    defer allocator.free(url);
+                    _ = try stdin.readAll(url);
 
-    const html_element = try dom.createElement("html");
-    try dom.appendToDocument(document, .{ .element = html_element });
-    const head_element = try dom.createElement("head");
-    try dom.appendChild(html_element, .{ .element = head_element });
-    const body_element = try dom.createElement("body");
-    try dom.appendChild(html_element, .{ .element = body_element });
-
-    const title_element = try dom.createElement("title");
-    try dom.appendChild(head_element, .{ .element = title_element });
-    const title_text = try dom.createText("Hello world");
-    try dom.appendChild(title_element, .{ .text = title_text });
-
-    const div_element = try dom.createElement("div");
-    try dom.appendChild(body_element, .{ .element = div_element });
-
-    const div_element_style_attribute = try dom.createAttribute("style", "margin-left: 20px; margin-right: 20px; height: 100px; background-color: red");
-    try dom.addAttribute(div_element, div_element_style_attribute);
-
-    try dom.printDocument(document, std.io.getStdOut().writer());
-
-    for (dom.elements.items, 0..) |element, i| {
-        std.log.debug("{d} -> {s}", .{ i, element.tag_name });
-    }
-
-    const style_tree = try engine.style.style(allocator, dom, document, user_agent_stylesheet);
-    defer style_tree.deinit();
-
-    var layout_tree = try engine.layout.LayoutTree.generate(allocator, style_tree);
-    defer layout_tree.deinit();
-
-    engine.layout.reflow(layout_tree, 300);
-
-    for (layout_tree.nodes.items) |node| {
-        std.log.debug("{}", .{node.box});
-    }
-
-    const draw_list = try engine.paint.paint(allocator, layout_tree);
-    defer allocator.free(draw_list);
-
-    std.log.debug("{any}", .{draw_list});
-
-    const renderer = engine.Renderer.init(allocator, .{});
-    defer renderer.deinit();
-
-    const surface = try renderer.createSurface(300, 300);
-    defer surface.deinit();
-
-    surface.draw(draw_list);
-
-    defer sdl3.shutdown();
-
-    const sdl_init_flags: sdl3.InitFlags = .{ .video = true };
-    try sdl3.init(sdl_init_flags);
-    defer sdl3.quit(sdl_init_flags);
-
-    const window = try sdl3.video.Window.init("axiom", 300, 300, .{});
-    defer window.deinit();
-
-    const sdl_renderer = try sdl3.render.Renderer.init(window, null);
-    defer sdl_renderer.deinit();
-
-    const texture = try sdl3.render.Texture.init(sdl_renderer, .array_rgb_24, .streaming, 300, 300);
-    defer texture.deinit();
-
-    var fps_capper = sdl3.extras.FramerateCapper(f32){ .mode = .{ .limited = 60 } };
-    while (true) {
-        const dt = fps_capper.delay();
-        _ = dt;
-
-        const pixels = try surface.readPixelsAlloc(allocator, .rgb);
-        defer allocator.free(pixels);
-
-        try texture.update(null, pixels.ptr, 300 * 3);
-
-        try sdl_renderer.clear();
-        try sdl_renderer.renderTexture(texture, null, null);
-        try sdl_renderer.present();
-
-        if (sdl3.events.poll()) |event| {
-            switch (event) {
-                .quit => break,
-                .terminating => break,
-                else => {},
+                    std.log.debug("Natigating to {s}", .{url});
+                },
             }
         }
     }
