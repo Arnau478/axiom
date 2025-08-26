@@ -40,7 +40,6 @@ fn generateForNode(
     style_tree: style.StyleTree,
     style_node: style.StyleTree.NodeId,
 ) !NodeId {
-    std.log.debug("Generating layout tree for {}", .{style_tree.getNode(style_node).?.element});
     const computed_style = style_tree.getComputedStyle(style_tree.getNode(style_node).?.computed_style).?;
 
     std.debug.assert(computed_style.display != .none);

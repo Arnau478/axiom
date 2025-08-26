@@ -4,9 +4,13 @@
     .fingerprint = 0x5a9bbbb18162c374,
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
-        .sdl3 = .{
-            .url = "git+https://github.com/Gota7/zig-sdl3#1ee07438a47e64655fd47bf50ef661f25076fe2f",
-            .hash = "sdl3-0.0.1-NmT1Q1HbIABTD_CUyykVfm0QvOypexSjFDSNFYLXD_Zb",
+        .zglfw = .{
+            .url = "git+https://github.com/zig-gamedev/zglfw#feeeff9386dd44ba2c18488113023865c41b80a4",
+            .hash = "zglfw-0.10.0-dev-zgVDNLyhIQCZR_rbIf7hnCKuifzcmPOLOQhd_hrqq8cl",
+        },
+        .zigglgen = .{
+            .url = "git+https://github.com/castholm/zigglgen.git#744d8b6617a7eb8df15f5922faa002e0b5234025",
+            .hash = "zigglgen-0.4.0-bmyqLXT4LQCQviz5TRTU14ntLCRUxLNTK0Us3v93jyxR",
         },
     },
     .paths = .{""},

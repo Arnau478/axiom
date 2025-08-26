@@ -1,10 +1,10 @@
 const std = @import("std");
 const build_options = @import("build_options");
 const layout = @import("layout.zig");
-const Renderer = @import("Renderer.zig");
+const render = @import("render.zig");
 
-pub fn paint(allocator: std.mem.Allocator, layout_tree: layout.LayoutTree) ![]const Renderer.Command {
-    var commands = std.ArrayList(Renderer.Command).init(allocator);
+pub fn paint(allocator: std.mem.Allocator, layout_tree: layout.LayoutTree) ![]const render.Command {
+    var commands = std.ArrayList(render.Command).init(allocator);
     defer commands.deinit();
 
     try paintNode(layout_tree, layout_tree.root, &commands);
@@ -12,7 +12,7 @@ pub fn paint(allocator: std.mem.Allocator, layout_tree: layout.LayoutTree) ![]co
     return try commands.toOwnedSlice();
 }
 
-fn paintNode(layout_tree: layout.LayoutTree, id: layout.LayoutTree.NodeId, commands: *std.ArrayList(Renderer.Command)) !void {
+fn paintNode(layout_tree: layout.LayoutTree, id: layout.LayoutTree.NodeId, commands: *std.ArrayList(render.Command)) !void {
     const node = layout_tree.getNode(id).?;
 
     if (node.computed_style.background_color.value.a != 0) {
