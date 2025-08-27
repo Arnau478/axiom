@@ -2,10 +2,7 @@ const std = @import("std");
 
 pub fn write(comptime T: type, value: T, writer: std.io.AnyWriter) !void {
     switch (T) {
-        []const u8 => {
-            try write(usize, value.len, writer);
-            try writer.writeAll(value);
-        },
+        void => {},
         else => switch (@typeInfo(T)) {
             .pointer => |p| switch (p.size) {
                 .slice => {
@@ -40,6 +37,7 @@ pub fn write(comptime T: type, value: T, writer: std.io.AnyWriter) !void {
 
 pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: std.io.AnyReader) !T {
     return switch (T) {
+        void => {},
         else => switch (@typeInfo(T)) {
             .pointer => |p| switch (p.size) {
                 .slice => value: {
