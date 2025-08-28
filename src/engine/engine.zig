@@ -1,5 +1,6 @@
 const std = @import("std");
 
+pub const html = @import("html.zig");
 pub const style = @import("style.zig");
 pub const layout = @import("layout.zig");
 pub const paint = @import("paint.zig");
