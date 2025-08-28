@@ -78,6 +78,11 @@ pub const DocumentChild = union(enum) {
     document_type: DocumentTypeId,
 };
 
+pub const Parent = union(enum) {
+    element: ElementId,
+    document: DocumentId,
+};
+
 pub const Document = struct {
     children: std.ArrayListUnmanaged(DocumentChild) = .{},
     // Shortcuts
@@ -90,7 +95,7 @@ pub const Element = struct {
     namespace: ?[]const u8 = null,
     attributes: std.ArrayListUnmanaged(AttributeId) = .{},
     children: std.ArrayListUnmanaged(ContentNode) = .{},
-    parent: ?ElementId = null,
+    parent: ?Parent = null,
 };
 
 pub const Text = struct {
@@ -100,7 +105,7 @@ pub const Text = struct {
 
 pub const Comment = struct {
     data: []const u8,
-    parent: ?ElementId = null,
+    parent: ?Parent = null,
 };
 
 pub const Attribute = struct {
@@ -184,7 +189,7 @@ pub fn appendChild(dom: *Dom, parent_id: ElementId, child: ContentNode) !void {
     switch (child) {
         .element => |child_id| {
             const child_element = dom.getElement(child_id).?;
-            child_element.parent = parent_id;
+            child_element.parent = .{ .element = parent_id };
         },
         .text => |child_id| {
             const child_text = dom.getText(child_id).?;
@@ -192,7 +197,7 @@ pub fn appendChild(dom: *Dom, parent_id: ElementId, child: ContentNode) !void {
         },
         .comment => |child_id| {
             const child_comment = dom.getComment(child_id).?;
-            child_comment.parent = parent_id;
+            child_comment.parent = .{ .element = parent_id };
         },
     }
 
@@ -214,6 +219,18 @@ pub fn appendToDocument(dom: *Dom, document_id: DocumentId, child: DocumentChild
             document.document_type = document_type_id;
         },
         else => {},
+    }
+
+    switch (child) {
+        .element => |child_id| {
+            const child_element = dom.getElement(child_id).?;
+            child_element.parent = .{ .document = document_id };
+        },
+        .comment => |child_id| {
+            const child_comment = dom.getComment(child_id).?;
+            child_comment.parent = .{ .document = document_id };
+        },
+        .document_type => {},
     }
 
     try document.children.append(dom.allocator, child);
@@ -285,7 +302,10 @@ fn printElement(dom: Dom, element_id: ElementId, writer: anytype, indent: usize)
                 },
                 .text => {
                     const text = dom.getText(child.text).?;
-                    try writer.writeAll(text.data);
+                    const data = std.mem.trim(u8, text.data, &.{ '\t', '\n', 0xC, '\r', ' ' });
+                    if (data.len != 0) {
+                        try writer.writeAll(data);
+                    }
                 },
                 .comment => {
                     const comment = dom.getComment(child.comment).?;
