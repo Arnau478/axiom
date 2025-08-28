@@ -3,18 +3,31 @@ const build_options = @import("build_options");
 const gl = @import("gl");
 const render = @import("../render.zig");
 
-pub fn draw(commands: []const render.Command, viewport_width: f32, viewport_height: f32) void {
+pub fn draw(commands: []const render.Command, viewport: render.Viewport, window_width: usize, window_height: usize) void {
+    _ = window_width;
+    gl.Enable(gl.SCISSOR_TEST);
+    defer gl.Disable(gl.SCISSOR_TEST);
+    gl.Viewport(
+        @intCast(viewport.x),
+        @intCast(window_height - viewport.y - viewport.height),
+        @intCast(viewport.width),
+        @intCast(viewport.height),
+    );
+    gl.Scissor(
+        @intCast(viewport.x),
+        @intCast(window_height - viewport.y - viewport.height),
+        @intCast(viewport.width),
+        @intCast(viewport.height),
+    );
+
     if (build_options.render_wireframe_mode) {
         gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
     } else {
         gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL);
     }
 
+    gl.ClearColor(1.0, 1.0, 1.0, 1.0);
     gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    gl.Disable(gl.DEPTH_TEST);
-    gl.Disable(gl.CULL_FACE);
-    gl.Viewport(0, 0, @intFromFloat(viewport_width), @intFromFloat(viewport_height));
 
     // TODO: Avoid recompiling shaders
 
@@ -46,10 +59,10 @@ pub fn draw(commands: []const render.Command, viewport_width: f32, viewport_heig
                 gl.Clear(gl.COLOR);
             },
             .simple_rect => |simple_rect| {
-                const x1 = (@as(f32, @floatFromInt(simple_rect.x)) / viewport_width) * 2 - 1;
-                const x2 = (@as(f32, @floatFromInt(simple_rect.x + simple_rect.width)) / viewport_width) * 2 - 1;
-                const y1 = 1 - (@as(f32, @floatFromInt(simple_rect.y)) / viewport_height) * 2;
-                const y2 = 1 - (@as(f32, @floatFromInt(simple_rect.y + simple_rect.height)) / viewport_height) * 2;
+                const x1 = (@as(f32, @floatFromInt(simple_rect.x)) / @as(f32, @floatFromInt(viewport.width))) * 2 - 1;
+                const x2 = (@as(f32, @floatFromInt(simple_rect.x + simple_rect.width)) / @as(f32, @floatFromInt(viewport.width))) * 2 - 1;
+                const y1 = 1 - (@as(f32, @floatFromInt(simple_rect.y)) / @as(f32, @floatFromInt(viewport.height))) * 2;
+                const y2 = 1 - (@as(f32, @floatFromInt(simple_rect.y + simple_rect.height)) / @as(f32, @floatFromInt(viewport.height))) * 2;
 
                 const r = @as(f32, @floatFromInt(simple_rect.color.r)) / 255.0;
                 const g = @as(f32, @floatFromInt(simple_rect.color.g)) / 255.0;

@@ -78,13 +78,23 @@ pub fn run(browser: *Browser) !void {
         if (browser.tabs.items.len == 0) break;
 
         const window_size = browser.window.getFramebufferSize();
-        try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = @intCast(window_size[0]), .height = @intCast(window_size[1]) } });
+        const window_width: usize = @intCast(window_size[0]);
+        const window_height: usize = @intCast(window_size[1]);
+
+        const viewport: engine.render.Viewport = .{
+            .x = 0,
+            .y = 25,
+            .width = window_width,
+            .height = window_height - 25,
+        };
+
+        try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = viewport.width, .height = viewport.height } });
 
         const draw_list = try browser.currentTab().view_process.recv(browser.allocator, .new_frame);
         defer browser.allocator.free(draw_list);
 
         const draw_start_time = std.time.milliTimestamp();
-        engine.render.draw(draw_list, @floatFromInt(window_size[0]), @floatFromInt(window_size[1]));
+        engine.render.draw(draw_list, viewport, window_width, window_height);
         const draw_end_time = std.time.milliTimestamp();
         const draw_time = draw_end_time - draw_start_time;
         std.log.debug("Draw time: {d}ms", .{draw_time});
