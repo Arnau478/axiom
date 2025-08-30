@@ -67,7 +67,15 @@ fn createElementForToken(tree_constructor: TreeConstructor, source: []const u8, 
 
     const element = try tree_constructor.dom.createElement(local_name);
 
-    // TODO: Append attributes
+    var attribute_iter = token.?.type.start_tag.attributeIterator();
+    while (attribute_iter.next(source)) |attribute| {
+        const attribute_id = try tree_constructor.dom.createAttribute(
+            attribute.name.slice(source),
+            (attribute.value orelse @panic("TODO")).slice(source),
+        );
+        try tree_constructor.dom.addAttribute(element, attribute_id);
+    }
+
     // TODO: "xmlns" attribute
     // TODO: Resetable elements (except form-associated custom elements)
     // TODO: Form-associated non-custom elements

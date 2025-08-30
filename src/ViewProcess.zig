@@ -54,6 +54,17 @@ pub fn run(view_process: *ViewProcess) !void {
         }
 
         if (view_process.active) {
+            const html_source =
+                \\<!DOCTYPE html>
+                \\<html>
+                \\  <head>
+                \\  </head>
+                \\  <body>
+                \\    <foo style="display: block; height: 200px; background-color: gray;"></foo>
+                \\  </body>
+                \\</html>
+            ;
+
             const update_start_time = std.time.milliTimestamp();
 
             var dom = engine.Dom.init(view_process.allocator);
@@ -61,26 +72,9 @@ pub fn run(view_process: *ViewProcess) !void {
 
             const document = try dom.createDocument();
 
-            const doctype = try dom.createDocumentType("html");
-            try dom.appendToDocument(document, .{ .document_type = doctype });
+            try engine.html.parse(view_process.allocator, &dom, document, html_source);
 
-            const html_element = try dom.createElement("html");
-            try dom.appendToDocument(document, .{ .element = html_element });
-            const head_element = try dom.createElement("head");
-            try dom.appendChild(html_element, .{ .element = head_element });
-            const body_element = try dom.createElement("body");
-            try dom.appendChild(html_element, .{ .element = body_element });
-
-            const title_element = try dom.createElement("title");
-            try dom.appendChild(head_element, .{ .element = title_element });
-            const title_text = try dom.createText("Hello world");
-            try dom.appendChild(title_element, .{ .text = title_text });
-
-            const div_element = try dom.createElement("div");
-            try dom.appendChild(body_element, .{ .element = div_element });
-
-            const div_element_style_attribute = try dom.createAttribute("style", "margin-left: 20px; margin-right: 20px; height: 100px; background-color: red");
-            try dom.addAttribute(div_element, div_element_style_attribute);
+            try dom.printDocument(document, std.io.getStdErr().writer());
 
             const style_tree = try engine.style.style(view_process.allocator, dom, document, user_agent_stylesheet);
             defer style_tree.deinit();

@@ -12,6 +12,11 @@ const State = union(enum) {
     tag_open,
     end_tag_open,
     tag_name: Token,
+    before_attribute_name: Token,
+    attribute_name: Token,
+    before_attribute_value: Token,
+    attribute_value_double_quoted: Token,
+    after_attribute_value_quoted: Token,
     markup_declaration_open,
     doctype,
     before_doctype_name,
@@ -99,7 +104,7 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
         .tag_name => |token| {
             const codepoint = tokenizer.consumeCodepoint();
             if (codepoint) |cp| switch (cp) {
-                '\t', '\n', 0x0C, ' ' => @panic("TODO"),
+                '\t', '\n', 0x0C, ' ' => continue :state .{ .before_attribute_name = token },
                 '/' => @panic("TODO"),
                 '>' => {
                     tokenizer.state = .data;
@@ -114,6 +119,64 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
                     }
                     continue :state .{ .tag_name = t };
                 },
+            } else @panic("TODO");
+        },
+        .before_attribute_name => |token| {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '\t', '\n', 0x0C, ' ' => continue :state .{ .before_attribute_name = token },
+                '/', '>' => @panic("TODO"),
+                '=' => @panic("TODO"),
+                else => {
+                    var t = token;
+                    t.type.start_tag.attributes = .{ .start = start_pos, .end = tokenizer.idx };
+                    continue :state .{ .attribute_name = t };
+                },
+            } else @panic("TODO");
+        },
+        .attribute_name => |token| {
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '\t', '\n', 0x0C, ' ', '/', '>' => @panic("TODO"),
+                '=' => continue :state .{ .before_attribute_value = token },
+                0 => @panic("TODO"),
+                '"', '\'', '<' => @panic("TODO"),
+                else => continue :state .{ .attribute_name = token },
+            } else @panic("TODO");
+        },
+        .before_attribute_value => |token| {
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '\t', '\n', 0x0C, ' ' => continue :state .{ .before_attribute_value = token },
+                '"' => continue :state .{ .attribute_value_double_quoted = token },
+                '\'' => @panic("TODO"),
+                '>' => @panic("TODO"),
+                else => @panic("TODO"),
+            } else @panic("TODO");
+        },
+        .attribute_value_double_quoted => |token| {
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '"' => continue :state .{ .after_attribute_value_quoted = token },
+                '&' => @panic("TODO"),
+                0 => @panic("TODO"),
+                else => continue :state .{ .attribute_value_double_quoted = token },
+            } else @panic("TODO");
+        },
+        .after_attribute_value_quoted => |token| {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '\t', '\n', 0x0C, ' ' => continue :state .{ .before_attribute_name = token },
+                '/' => @panic("TODO"),
+                '>' => {
+                    var t = token;
+                    t.type.start_tag.attributes.end = start_pos;
+                    tokenizer.state = .data;
+                    return t;
+                },
+                else => @panic("TODO"),
             } else @panic("TODO");
         },
         .markup_declaration_open => {
