@@ -74,6 +74,7 @@ pub const Rule = union(enum) {
             width: Property.width.Value(),
             height: Property.height.Value(),
             display: Property.display.Value(),
+            position: Property.position.Value(),
             @"background-color": Property.@"background-color".Value(),
 
             pub const Property = enum {
@@ -97,6 +98,7 @@ pub const Rule = union(enum) {
                 height,
 
                 display,
+                position,
 
                 @"background-color",
 
@@ -200,8 +202,13 @@ pub const Rule = union(enum) {
                                     .none => .none,
                                 };
                             }
+                        },
+                        .position => struct {
+                            value: layout.Position,
 
-                            pub const initial: @This() = .{ .value = .@"inline" };
+                            pub fn compute(v: @This()) layout.Position {
+                                return v.value;
+                            }
                         },
                         .@"background-color" => struct {
                             value: value.Color,

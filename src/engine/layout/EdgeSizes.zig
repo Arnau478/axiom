@@ -22,4 +22,4 @@ pub fn uniform(value: f32) EdgeSizes {
     };
 }
 
-pub const zero = uniform(0.0);
+pub const zero = uniform(0);

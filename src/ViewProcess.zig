@@ -60,7 +60,10 @@ pub fn run(view_process: *ViewProcess) !void {
                 \\  <head>
                 \\  </head>
                 \\  <body>
-                \\    <foo style="display: block; height: 200px; background-color: gray;"></foo>
+                \\    <foo-a style="display:block"></foo-a>
+                \\    <foo-b style="display:inline"></foo-b>
+                \\    <foo-c style="display:inline"></foo-c>
+                \\    <foo-d style="display:block"></foo-d>
                 \\  </body>
                 \\</html>
             ;
@@ -79,12 +82,14 @@ pub fn run(view_process: *ViewProcess) !void {
             const style_tree = try engine.style.style(view_process.allocator, dom, document, user_agent_stylesheet);
             defer style_tree.deinit();
 
-            var layout_tree = try engine.layout.LayoutTree.generate(view_process.allocator, style_tree);
-            defer layout_tree.deinit();
+            var box_tree = try engine.layout.generateBox(view_process.allocator, style_tree, style_tree.root);
+            defer box_tree.deinit(view_process.allocator);
 
-            engine.layout.reflow(layout_tree, @floatFromInt(view_process.viewport_width));
+            try box_tree.printTree(dom, std.io.getStdErr().writer().any());
 
-            const draw_list = try engine.paint.paint(view_process.allocator, layout_tree);
+            engine.layout.reflow(box_tree, @floatFromInt(view_process.viewport_width));
+
+            const draw_list = try engine.paint.paint(view_process.allocator, box_tree);
             defer view_process.allocator.free(draw_list);
 
             const update_end_time = std.time.milliTimestamp();

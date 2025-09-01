@@ -20,6 +20,7 @@ padding_left: Stylesheet.Rule.Style.Declaration.Property.@"padding-left".Value()
 width: Stylesheet.Rule.Style.Declaration.Property.width.Value() = .initial,
 height: Stylesheet.Rule.Style.Declaration.Property.height.Value() = .initial,
 display: layout.Display = .@"inline",
+position: layout.Position = .static,
 background_color: Stylesheet.Rule.Style.Declaration.Property.@"background-color".Value() = .initial,
 
 pub fn flush(computed_style: *ComputedStyle) void {
@@ -29,4 +30,9 @@ pub fn flush(computed_style: *ComputedStyle) void {
         computed_style.border_bottom_width = .zero;
         computed_style.border_left_width = .zero;
     }
+}
+
+pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
+    // TODO: Actually implement this
+    return computed_style;
 }
