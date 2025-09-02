@@ -59,11 +59,15 @@ pub fn run(view_process: *ViewProcess) !void {
                 \\<html>
                 \\  <head>
                 \\  </head>
-                \\  <body>
-                \\    <foo-a style="display:block"></foo-a>
-                \\    <foo-b style="display:inline"></foo-b>
-                \\    <foo-c style="display:inline"></foo-c>
-                \\    <foo-d style="display:block"></foo-d>
+                \\  <body style="background-color:gray">
+                \\    <foo-a style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:red;">
+                \\      <foo-b style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:green;">
+                \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
+                \\        </foo-c>
+                \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
+                \\        </foo-c>
+                \\      </foo-b>
+                \\    </foo-a>
                 \\  </body>
                 \\</html>
             ;
@@ -87,7 +91,10 @@ pub fn run(view_process: *ViewProcess) !void {
 
             try box_tree.printTree(dom, std.io.getStdErr().writer().any());
 
-            engine.layout.reflow(box_tree, @floatFromInt(view_process.viewport_width));
+            engine.layout.reflow(box_tree, .{
+                .width = @floatFromInt(view_process.viewport_width),
+                .height = @floatFromInt(view_process.viewport_height),
+            });
 
             const draw_list = try engine.paint.paint(view_process.allocator, box_tree);
             defer view_process.allocator.free(draw_list);

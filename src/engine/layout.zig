@@ -116,7 +116,39 @@ pub fn generateBox(allocator: std.mem.Allocator, style_tree: style.StyleTree, st
     }
 }
 
-pub fn reflow(box: *Box, viewport_width: f32) void {
-    _ = box;
-    _ = viewport_width;
+pub fn reflow(root: *Box, viewport_size: Size) void {
+    reflowBox(root, .{ .origin = .zero, .size = viewport_size }, viewport_size);
+}
+
+pub fn reflowBox(box: *Box, containing_block: Rect, viewport_size: Size) void {
+    switch (box.positioningScheme()) {
+        .normal_flow => {
+            box.predetermineDimensions(containing_block);
+            box.predeterminePosition(containing_block);
+
+            switch (box.containerType()) {
+                .block => {
+                    // TODO: Inline formatting context
+
+                    var current_content_height: f32 = 0;
+
+                    for (box.children.items) |child| {
+                        reflowBox(child, box.box_model.content_box.expand(.{
+                            .top = -current_content_height,
+                            .right = 0,
+                            .bottom = 0,
+                            .left = 0,
+                        }), viewport_size);
+
+                        current_content_height += child.box_model.marginBox().size.height;
+                    }
+
+                    box.box_model.content_box.size.height = current_content_height;
+                },
+                .@"inline" => @panic("TODO"),
+            }
+
+            box.finalizeDimensions(containing_block);
+        },
+    }
 }
