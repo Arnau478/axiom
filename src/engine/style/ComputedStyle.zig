@@ -79,6 +79,15 @@ pub fn applyDeclaration(computed_style: *ComputedStyle, declaration: Stylesheet.
             .medium => .{ .magnitude = 3, .unit = .px },
             .thick => .{ .magnitude = 5, .unit = .px },
         },
+        .padding => |padding| switch (padding.value) {
+            .one => |v| {
+                computed_style.applyDeclaration(.{ .@"padding-top" = v });
+                computed_style.applyDeclaration(.{ .@"padding-right" = v });
+                computed_style.applyDeclaration(.{ .@"padding-bottom" = v });
+                computed_style.applyDeclaration(.{ .@"padding-left" = v });
+            },
+            else => @panic("TODO"),
+        },
         .@"padding-top" => |v| computed_style.padding_top = v.value,
         .@"padding-right" => |v| computed_style.padding_right = v.value,
         .@"padding-bottom" => |v| computed_style.padding_bottom = v.value,

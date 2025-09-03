@@ -67,6 +67,7 @@ pub const Rule = union(enum) {
             @"border-right-width": Property.@"border-right-width".Value(),
             @"border-bottom-width": Property.@"border-bottom-width".Value(),
             @"border-left-width": Property.@"border-left-width".Value(),
+            padding: Property.padding.Value(),
             @"padding-top": Property.@"padding-top".Value(),
             @"padding-right": Property.@"padding-right".Value(),
             @"padding-bottom": Property.@"padding-bottom".Value(),
@@ -89,6 +90,7 @@ pub const Rule = union(enum) {
                 @"border-bottom-width",
                 @"border-left-width",
 
+                padding,
                 @"padding-top",
                 @"padding-right",
                 @"padding-bottom",
@@ -146,6 +148,26 @@ pub const Rule = union(enum) {
                                 thin,
                                 medium,
                                 thick,
+                            },
+                        },
+                        .padding => struct {
+                            value: union(enum) {
+                                one: Value(.@"padding-top"),
+                                two: struct {
+                                    a: Value(.@"padding-top"),
+                                    b: Value(.@"padding-top"),
+                                },
+                                three: struct {
+                                    a: Value(.@"padding-top"),
+                                    b: Value(.@"padding-top"),
+                                    c: Value(.@"padding-top"),
+                                },
+                                four: struct {
+                                    a: Value(.@"padding-top"),
+                                    b: Value(.@"padding-top"),
+                                    c: Value(.@"padding-top"),
+                                    d: Value(.@"padding-top"),
+                                },
                             },
                         },
                         .@"padding-top", .@"padding-right", .@"padding-bottom", .@"padding-left" => struct {

@@ -55,28 +55,7 @@ pub fn run(view_process: *ViewProcess) !void {
 
         if (view_process.active) {
             const about_pages = std.StaticStringMap([]const u8).initComptime(&.{
-                .{
-                    "blank",
-                    \\<!DOCTYPE html>
-                    \\<html>
-                    \\  <head>
-                    \\    <style>
-                    \\      foo {
-                    \\        display: block;
-                    \\        margin: 20px;
-                    \\      }
-                    \\    </style>
-                    \\  </head>
-                    \\  <body style="background-color:gray">
-                    \\    <foo style="background-color:red;">
-                    \\      <foo style="background-color:green;">
-                    \\        <foo style="background-color:blue;height:100px;"></foo>
-                    \\        <foo style="background-color:blue;height:100px;"></foo>
-                    \\      </foo>
-                    \\    </foo>
-                    \\  </body>
-                    \\</html>
-                },
+                .{ "blank", @embedFile("about/blank.html") },
             });
 
             const html_source = try engine.fetch.fetch(view_process.url, about_pages);

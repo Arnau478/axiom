@@ -692,7 +692,7 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                     isWhitespaceCharacterToken(token, source) or
                     isStartTagWithName(token, source, &.{"html"}))
                 {
-                    @panic("TODO");
+                    continue :mode .in_body;
                 } else if (isEof(token)) {
                     // Done
                 } else {
