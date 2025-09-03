@@ -250,6 +250,88 @@ pub fn getElementAttribute(dom: Dom, element: ElementId, name: []const u8) ?[]co
     }
 }
 
+pub fn getNextElementSibling(dom: Dom, element_id: ElementId) ?ElementId {
+    const element = dom.getElement(element_id).?;
+
+    if (element.parent == null) return null;
+
+    const parent = switch (element.parent.?) {
+        .element => |id| dom.getElement(id).?,
+        .document => return null,
+    };
+
+    var found = false;
+    for (parent.children.items) |child| {
+        if (found and child == .element) {
+            return child.element;
+        }
+
+        if (child == .element and child.element == element_id) {
+            found = true;
+        }
+    }
+
+    return null;
+}
+
+pub const StyleSourceIterator = struct {
+    dom: *const Dom,
+    current: ?ElementId,
+
+    pub fn next(iter: *StyleSourceIterator) ?[]const u8 {
+        while (iter.current) |current_id| {
+            const current_element = iter.dom.getElement(current_id).?;
+
+            const is_style = std.mem.eql(u8, current_element.tag_name, "style");
+
+            iter.current = iter.getNextElement();
+
+            if (is_style) {
+                // TODO: Proper handling
+                if (current_element.children.items.len == 0) return "";
+                std.debug.assert(current_element.children.items.len == 1);
+                std.debug.assert(current_element.children.items[0] == .text);
+                return iter.dom.getText(current_element.children.items[0].text).?.data;
+            }
+        }
+
+        return null;
+    }
+
+    fn getNextElement(iter: StyleSourceIterator) ?ElementId {
+        const current_element = iter.dom.getElement(iter.current.?).?;
+
+        for (current_element.children.items) |child| {
+            if (child == .element) {
+                return child.element;
+            }
+        }
+
+        return iter.getNextSibling(iter.current.?);
+    }
+
+    fn getNextSibling(iter: StyleSourceIterator, element_id: ElementId) ?ElementId {
+        if (iter.dom.getNextElementSibling(element_id)) |sibling| return sibling;
+
+        const element = iter.dom.getElement(element_id).?;
+
+        if (element.parent) |parent| {
+            switch (parent) {
+                .element => |parent_id| {
+                    return iter.getNextSibling(parent_id);
+                },
+                .document => return null,
+            }
+        }
+
+        return null;
+    }
+};
+
+pub fn styleSourceIterator(dom: *const Dom, document_id: DocumentId) StyleSourceIterator {
+    return .{ .dom = dom, .current = dom.getDocument(document_id).?.element.? };
+}
+
 pub fn printDocument(dom: Dom, document_id: DocumentId, writer: anytype) !void {
     const document = dom.getDocument(document_id).?;
 

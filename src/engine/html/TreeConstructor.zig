@@ -3,11 +3,13 @@ const TreeConstructor = @This();
 const std = @import("std");
 const Dom = @import("../Dom.zig");
 const Token = @import("Token.zig");
+const Tokenizer = @import("Tokenizer.zig");
 
 allocator: std.mem.Allocator,
 dom: *Dom,
 document_id: Dom.DocumentId,
 insertion_mode: InsertionMode,
+original_insertion_mode: ?InsertionMode,
 scripting_enabled: bool,
 frameset_ok: bool,
 open_elements: std.ArrayListUnmanaged(Dom.ElementId),
@@ -19,6 +21,7 @@ pub fn init(allocator: std.mem.Allocator, dom: *Dom, document_id: Dom.DocumentId
         .dom = dom,
         .document_id = document_id,
         .insertion_mode = .initial,
+        .original_insertion_mode = null,
         .scripting_enabled = true,
         .frameset_ok = true,
         .open_elements = .empty,
@@ -101,6 +104,10 @@ fn insertCharacter(tree_constructor: *TreeConstructor, data: []const u8) !void {
     if (tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.children.getLastOrNull()) |last| {
         if (last == .text) {
             // TODO: Append to last text node
+            const str = try std.mem.join(tree_constructor.allocator, "", &.{ tree_constructor.dom.getText(last.text).?.data, data });
+            defer tree_constructor.allocator.free(str);
+            tree_constructor.dom.getText(last.text).?.data = try tree_constructor.dom.internString(str);
+            return;
         }
     }
 
@@ -330,7 +337,7 @@ fn isEndTagNotWithName(token: ?Token, source: []const u8, names: []const []const
     return isEndTag(token) and isStartOrEndTagNotWithName(token, source, names);
 }
 
-pub fn dispatch(tree_constructor: *TreeConstructor, source: []const u8, token: ?Token) !void {
+pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, source: []const u8, token: ?Token) !void {
     // TODO: Foreign content
 
     if (token != null and token.?.type == .character and
@@ -340,7 +347,7 @@ pub fn dispatch(tree_constructor: *TreeConstructor, source: []const u8, token: ?
         while (rem.slice(source).len > 0) {
             const sequence_len = std.unicode.utf8ByteSequenceLength(rem.slice(source)[0]) catch @panic("TODO");
             std.debug.assert(rem.slice(source).len >= sequence_len);
-            try tree_constructor.dispatch(source, .{ .type = .{ .character = .{ .start = rem.start, .end = rem.start + sequence_len } } });
+            try tree_constructor.dispatch(tokenizer, source, .{ .type = .{ .character = .{ .start = rem.start, .end = rem.start + sequence_len } } });
             rem.start += sequence_len;
         }
     } else {
@@ -426,7 +433,11 @@ pub fn dispatch(tree_constructor: *TreeConstructor, source: []const u8, token: ?
                 } else if ((isStartTagWithName(token, source, &.{"noscript"}) and tree_constructor.scripting_enabled) or
                     isStartTagWithName(token, source, &.{ "noframes", "style" }))
                 {
-                    @panic("TODO");
+                    _ = try tree_constructor.insertElementForToken(source, token);
+
+                    tokenizer.state = .rawtext;
+                    tree_constructor.original_insertion_mode = tree_constructor.insertion_mode;
+                    tree_constructor.insertion_mode = .text;
                 } else if (isStartTagWithName(token, source, &.{"noscript"}) and !tree_constructor.scripting_enabled) {
                     @panic("TODO");
                 } else if (isStartTagWithName(token, source, &.{"script"})) {
@@ -632,7 +643,19 @@ pub fn dispatch(tree_constructor: *TreeConstructor, source: []const u8, token: ?
                     }
                 } else unreachable;
             },
-            .text => @panic("TODO"),
+            .text => {
+                if (isCharacterToken(token)) {
+                    try tree_constructor.insertCharacter(token.?.type.character.slice(source));
+                } else if (isEof(token)) {
+                    @panic("TODO");
+                } else if (isEndTagWithName(token, source, &.{"script"})) {
+                    @panic("TODO");
+                } else if (isEndTag(token)) {
+                    _ = tree_constructor.open_elements.pop().?;
+                    tree_constructor.insertion_mode = tree_constructor.original_insertion_mode.?;
+                    tree_constructor.original_insertion_mode = null;
+                } else unreachable;
+            },
             .in_table => @panic("TODO"),
             .in_table_text => @panic("TODO"),
             .in_caption => @panic("TODO"),

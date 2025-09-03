@@ -11,10 +11,10 @@ pub fn parse(allocator: std.mem.Allocator, dom: *Dom, document_id: Dom.DocumentI
     var tokenizer: Tokenizer = .{ .source = source };
 
     while (tokenizer.next()) |token| {
-        try tree_constructor.dispatch(source, token);
+        try tree_constructor.dispatch(&tokenizer, source, token);
     }
 
-    try tree_constructor.dispatch(source, null);
+    try tree_constructor.dispatch(&tokenizer, source, null);
 }
 
 test {

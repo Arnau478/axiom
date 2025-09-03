@@ -6,12 +6,17 @@ const Token = @import("Token.zig");
 source: []const u8,
 idx: usize = 0,
 state: State = .data,
+last_start_tag_name: ?[]const u8 = null,
 
 const State = union(enum) {
     data,
+    rawtext,
     tag_open,
     end_tag_open,
     tag_name: Token,
+    rawtext_less_than_sign,
+    rawtext_end_tag_open,
+    rawtext_end_tag_name: Token.Type.Tag,
     before_attribute_name: Token,
     attribute_name: Token,
     before_attribute_value: Token,
@@ -59,6 +64,12 @@ fn nextCharactersAreIgnoreCase(tokenizer: Tokenizer, str: []const u8) bool {
     return std.ascii.eqlIgnoreCase(tokenizer.nextCharacters(str.len), str);
 }
 
+fn isAppropriateEndTag(tokenizer: Tokenizer, tag: Token.Type.Tag) bool {
+    if (tokenizer.last_start_tag_name) |name| {
+        return std.ascii.eqlIgnoreCase(tag.name.slice(tokenizer.source), name);
+    } else return false;
+}
+
 pub fn next(tokenizer: *Tokenizer) ?Token {
     state: switch (tokenizer.state) {
         .data => {
@@ -67,6 +78,25 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
             if (codepoint) |cp| switch (cp) {
                 '&' => @panic("TODO"),
                 '<' => continue :state .tag_open,
+                0 => @panic("TODO"),
+                else => {
+                    while (tokenizer.nextCodepointSlice() != null and switch (tokenizer.nextCodepointSlice().?[0]) {
+                        '&', '<', 0 => false,
+                        else => true,
+                    }) {
+                        _ = tokenizer.consumeCodepoint().?;
+                    }
+                    return .{ .type = .{ .character = .{ .start = start_pos, .end = tokenizer.idx } } };
+                },
+            } else {
+                return null;
+            }
+        },
+        .rawtext => {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '<' => continue :state .rawtext_less_than_sign,
                 0 => @panic("TODO"),
                 else => {
                     while (tokenizer.nextCodepointSlice() != null and switch (tokenizer.nextCodepointSlice().?[0]) {
@@ -108,6 +138,7 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
                 '/' => @panic("TODO"),
                 '>' => {
                     tokenizer.state = .data;
+                    if (token.type == .start_tag) tokenizer.last_start_tag_name = token.type.start_tag.name.slice(tokenizer.source);
                     return token;
                 },
                 0 => @panic("TODO"),
@@ -119,6 +150,39 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
                     }
                     continue :state .{ .tag_name = t };
                 },
+            } else @panic("TODO");
+        },
+        .rawtext_less_than_sign => {
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '/' => continue :state .rawtext_end_tag_open,
+                else => @panic("TODO"),
+            } else @panic("TODO");
+        },
+        .rawtext_end_tag_open => {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                'A'...'Z', 'a'...'z' => continue :state .{ .rawtext_end_tag_name = .{ .name = .{ .start = start_pos, .end = start_pos } } },
+                else => @panic("TODO"),
+            } else @panic("TODO");
+        },
+        .rawtext_end_tag_name => |token| {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '\t', '\n', 0x0C, ' ' => @panic("TODO"),
+                '/' => @panic("TODO"),
+                '>' => {
+                    var t = token;
+                    t.name.end = start_pos;
+                    if (tokenizer.isAppropriateEndTag(t)) {
+                        tokenizer.state = .data;
+                        return .{ .type = .{ .end_tag = t } };
+                    } else @panic("TODO");
+                },
+                'A'...'Z', 'a'...'z' => continue :state .{ .rawtext_end_tag_name = token },
+                else => @panic("TODO"),
             } else @panic("TODO");
         },
         .before_attribute_name => |token| {
@@ -174,6 +238,7 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
                     var t = token;
                     t.type.start_tag.attributes.end = start_pos;
                     tokenizer.state = .data;
+                    tokenizer.last_start_tag_name = token.type.start_tag.name.slice(tokenizer.source);
                     return t;
                 },
                 else => @panic("TODO"),

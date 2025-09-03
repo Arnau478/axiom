@@ -60,16 +60,19 @@ pub fn run(view_process: *ViewProcess) !void {
                     \\<!DOCTYPE html>
                     \\<html>
                     \\  <head>
+                    \\    <style>
+                    \\      foo {
+                    \\        margin: 20px;
+                    \\      }
+                    \\    </style>
                     \\  </head>
                     \\  <body style="background-color:gray">
-                    \\    <foo-a style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:red;">
-                    \\      <foo-b style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:green;">
-                    \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
-                    \\        </foo-c>
-                    \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
-                    \\        </foo-c>
-                    \\      </foo-b>
-                    \\    </foo-a>
+                    \\    <foo style="background-color:red;">
+                    \\      <foo style="background-color:green;">
+                    \\        <foo style="background-color:blue;height:100px;"></foo>
+                    \\        <foo style="background-color:blue;height:100px;"></foo>
+                    \\      </foo>
+                    \\    </foo>
                     \\  </body>
                     \\</html>
                 },

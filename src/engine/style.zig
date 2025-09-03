@@ -12,8 +12,26 @@ pub fn style(allocator: std.mem.Allocator, dom: Dom, document_id: Dom.DocumentId
     defer nodes.deinit();
     var computed_styles = std.ArrayList(ComputedStyle).init(allocator);
     defer computed_styles.deinit();
+
     const root_element_id = dom.getDocument(document_id).?.element.?;
-    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, user_agent_stylesheet, null);
+
+    var stylesheets = std.ArrayList(Stylesheet).init(allocator);
+    defer {
+        for (stylesheets.items, 0..) |stylesheet, i| {
+            if (user_agent_stylesheet != null and i == 0) continue;
+            stylesheet.deinit(allocator);
+        }
+        stylesheets.deinit();
+    }
+
+    if (user_agent_stylesheet) |stylesheet| try stylesheets.append(stylesheet);
+
+    var css_source_iter = dom.styleSourceIterator(document_id);
+    while (css_source_iter.next()) |source| {
+        try stylesheets.append(try css.parseStylesheet(allocator, source));
+    }
+
+    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, stylesheets.items, null);
 
     return .{
         .allocator = allocator,
@@ -29,7 +47,7 @@ fn styleElement(
     computed_styles: *std.ArrayList(ComputedStyle),
     dom: Dom,
     element_id: Dom.ElementId,
-    user_agent_stylesheet: ?Stylesheet,
+    stylesheets: []const Stylesheet,
     parent_computed_style: ?ComputedStyle,
 ) !StyleTree.NodeId {
     const raw_children = try allocator.alloc(StyleTree.NodeId, dom.getElement(element_id).?.children.items.len);
@@ -38,7 +56,7 @@ fn styleElement(
 
     var computed_style = if (parent_computed_style) |parent| ComputedStyle.inheritedOrInitial(parent) else ComputedStyle.initial;
 
-    if (user_agent_stylesheet) |stylesheet| {
+    for (stylesheets) |stylesheet| {
         var rules = std.ArrayList(Stylesheet.Rule.Style).init(allocator);
         defer rules.deinit();
 
@@ -84,7 +102,7 @@ fn styleElement(
     for (dom.getElement(element_id).?.children.items) |dom_child| {
         switch (dom_child) {
             .element => {
-                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element, user_agent_stylesheet, computed_style);
+                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element, stylesheets, computed_style);
                 child_idx += 1;
             },
             .text, .comment => {},
