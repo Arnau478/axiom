@@ -57,10 +57,6 @@ pub fn run(view_process: *ViewProcess) !void {
             const about_pages = std.StaticStringMap([]const u8).initComptime(&.{
                 .{
                     "blank",
-                    \\
-                },
-                .{
-                    "newtab",
                     \\<!DOCTYPE html>
                     \\<html>
                     \\  <head>

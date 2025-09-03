@@ -139,8 +139,6 @@ pub const Rule = union(enum) {
                                 length_percentage: value.LengthPercentage,
                                 auto,
                             },
-
-                            pub const initial: @This() = .{ .value = .{ .length_percentage = .{ .length = .zero } } };
                         },
                         .@"border-top-width", .@"border-right-width", .@"border-bottom-width", .@"border-left-width" => struct {
                             value: union(enum) {
@@ -149,30 +147,15 @@ pub const Rule = union(enum) {
                                 medium,
                                 thick,
                             },
-
-                            pub fn compute(v: @This()) value.Length {
-                                return switch (v.value) {
-                                    .length => |length| length,
-                                    .thin => .{ .magnitude = 1, .unit = .px },
-                                    .medium => .{ .magnitude = 3, .unit = .px },
-                                    .thick => .{ .magnitude = 5, .unit = .px },
-                                };
-                            }
-
-                            pub const initial: @This() = .{ .value = .medium };
                         },
                         .@"padding-top", .@"padding-right", .@"padding-bottom", .@"padding-left" => struct {
                             value: value.LengthPercentage,
-
-                            pub const initial: @This() = .{ .value = .{ .length = .zero } };
                         },
                         .width, .height => struct {
                             value: union(enum) {
                                 length_percentage: value.LengthPercentage,
                                 auto,
                             },
-
-                            pub const initial: @This() = .{ .value = .auto };
                         },
                         .display => struct {
                             value: enum {
@@ -192,28 +175,12 @@ pub const Rule = union(enum) {
                                 @"table-caption",
                                 none,
                             },
-
-                            pub fn compute(v: @This()) layout.Display {
-                                return switch (v.value) {
-                                    .@"inline" => .@"inline",
-                                    .block => .block,
-                                    .@"inline-block" => .inline_block,
-                                    else => @panic("TODO"),
-                                    .none => .none,
-                                };
-                            }
                         },
                         .position => struct {
                             value: layout.Position,
-
-                            pub fn compute(v: @This()) layout.Position {
-                                return v.value;
-                            }
                         },
                         .@"background-color" => struct {
                             value: value.Color,
-
-                            pub const initial: @This() = .{ .value = value.Color.builtin.transparent };
                         },
                     };
                 }

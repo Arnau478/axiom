@@ -63,7 +63,19 @@ pub fn positioningScheme(box: Box) layout.PositioningScheme {
 }
 
 pub fn predetermineDimensions(box: *Box, containing_block: Rect) void {
-    var width = switch (box.computed_style.width.value) {
+    var width = if (box.computed_style.width) |width| switch (width) {
+        .length => |length| length.toPx(),
+        .percentage => |percentage| percentage.of(containing_block.size.width),
+    } else null;
+
+    var margin_left = switch (box.computed_style.margin_left) {
+        .length_percentage => |length_percentage| switch (length_percentage) {
+            .length => |length| length.toPx(),
+            .percentage => |percentage| percentage.of(containing_block.size.width),
+        },
+        .auto => null,
+    };
+    var margin_right = switch (box.computed_style.margin_right) {
         .length_percentage => |length_percentage| switch (length_percentage) {
             .length => |length| length.toPx(),
             .percentage => |percentage| percentage.of(containing_block.size.width),
@@ -71,29 +83,14 @@ pub fn predetermineDimensions(box: *Box, containing_block: Rect) void {
         .auto => null,
     };
 
-    var margin_left = switch (box.computed_style.margin_left.value) {
+    const margin_top = switch (box.computed_style.margin_top) {
         .length_percentage => |length_percentage| switch (length_percentage) {
             .length => |length| length.toPx(),
             .percentage => |percentage| percentage.of(containing_block.size.width),
         },
         .auto => null,
     };
-    var margin_right = switch (box.computed_style.margin_right.value) {
-        .length_percentage => |length_percentage| switch (length_percentage) {
-            .length => |length| length.toPx(),
-            .percentage => |percentage| percentage.of(containing_block.size.width),
-        },
-        .auto => null,
-    };
-
-    const margin_top = switch (box.computed_style.margin_top.value) {
-        .length_percentage => |length_percentage| switch (length_percentage) {
-            .length => |length| length.toPx(),
-            .percentage => |percentage| percentage.of(containing_block.size.width),
-        },
-        .auto => null,
-    };
-    const margin_bottom = switch (box.computed_style.margin_bottom.value) {
+    const margin_bottom = switch (box.computed_style.margin_bottom) {
         .length_percentage => |length_percentage| switch (length_percentage) {
             .length => |length| length.toPx(),
             .percentage => |percentage| percentage.of(containing_block.size.width),
@@ -107,20 +104,20 @@ pub fn predetermineDimensions(box: *Box, containing_block: Rect) void {
     const border_top = box.computed_style.border_top_width.toPx();
     const border_bottom = box.computed_style.border_bottom_width.toPx();
 
-    const padding_left = switch (box.computed_style.padding_left.value) {
+    const padding_left = switch (box.computed_style.padding_left) {
         .length => |length| length.toPx(),
         .percentage => |percentage| percentage.of(containing_block.size.width),
     };
-    const padding_right = switch (box.computed_style.padding_right.value) {
+    const padding_right = switch (box.computed_style.padding_right) {
         .length => |length| length.toPx(),
         .percentage => |percentage| percentage.of(containing_block.size.width),
     };
 
-    const padding_top = switch (box.computed_style.padding_top.value) {
+    const padding_top = switch (box.computed_style.padding_top) {
         .length => |length| length.toPx(),
         .percentage => |percentage| percentage.of(containing_block.size.width),
     };
-    const padding_bottom = switch (box.computed_style.padding_bottom.value) {
+    const padding_bottom = switch (box.computed_style.padding_bottom) {
         .length => |length| length.toPx(),
         .percentage => |percentage| percentage.of(containing_block.size.width),
     };
@@ -217,13 +214,10 @@ pub fn predeterminePosition(box: *Box, containing_block: Rect) void {
 }
 
 pub fn finalizeDimensions(box: *Box, containing_block: Rect) void {
-    const height = switch (box.computed_style.height.value) {
-        .length_percentage => |length_percentage| switch (length_percentage) {
-            .length => |length| length.toPx(),
-            .percentage => |percentage| percentage.of(containing_block.size.height),
-        },
-        .auto => null,
-    };
+    const height = if (box.computed_style.height) |height| switch (height) {
+        .length => |length| length.toPx(),
+        .percentage => |percentage| percentage.of(containing_block.size.width),
+    } else null;
 
     if (height) |h| box.box_model.content_box.size.height = h;
 }

@@ -13,8 +13,8 @@ pub fn paint(allocator: std.mem.Allocator, box: *const layout.Box) ![]const rend
 }
 
 fn paintBox(box: *const layout.Box, commands: *std.ArrayList(render.Command)) !void {
-    if (box.computed_style.background_color.value.a != 0) {
-        std.debug.assert(box.computed_style.background_color.value.a == 255); // TODO: Transparency
+    if (box.computed_style.background_color.a != 0) {
+        std.debug.assert(box.computed_style.background_color.a == 255); // TODO: Transparency
 
         try commands.append(.{ .simple_rect = .{
             .x = @intFromFloat(box.box_model.borderBox().origin.x),
@@ -22,9 +22,9 @@ fn paintBox(box: *const layout.Box, commands: *std.ArrayList(render.Command)) !v
             .width = @intFromFloat(box.box_model.borderBox().size.width),
             .height = @intFromFloat(box.box_model.borderBox().size.height),
             .color = .{
-                .r = box.computed_style.background_color.value.r,
-                .g = box.computed_style.background_color.value.g,
-                .b = box.computed_style.background_color.value.b,
+                .r = box.computed_style.background_color.r,
+                .g = box.computed_style.background_color.g,
+                .b = box.computed_style.background_color.b,
             },
         } });
     }

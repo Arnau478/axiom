@@ -13,7 +13,7 @@ pub fn style(allocator: std.mem.Allocator, dom: Dom, document_id: Dom.DocumentId
     var computed_styles = std.ArrayList(ComputedStyle).init(allocator);
     defer computed_styles.deinit();
     const root_element_id = dom.getDocument(document_id).?.element.?;
-    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, user_agent_stylesheet);
+    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, user_agent_stylesheet, null);
 
     return .{
         .allocator = allocator,
@@ -30,12 +30,13 @@ fn styleElement(
     dom: Dom,
     element_id: Dom.ElementId,
     user_agent_stylesheet: ?Stylesheet,
+    parent_computed_style: ?ComputedStyle,
 ) !StyleTree.NodeId {
     const raw_children = try allocator.alloc(StyleTree.NodeId, dom.getElement(element_id).?.children.items.len);
     errdefer allocator.free(raw_children);
     var children = raw_children;
 
-    var computed_style: ComputedStyle = .{};
+    var computed_style = if (parent_computed_style) |parent| ComputedStyle.inheritedOrInitial(parent) else ComputedStyle.initial;
 
     if (user_agent_stylesheet) |stylesheet| {
         var rules = std.ArrayList(Stylesheet.Rule.Style).init(allocator);
@@ -59,7 +60,7 @@ fn styleElement(
 
         for (rules.items) |rule| {
             for (rule.declarations) |declaration| {
-                applyDeclaration(declaration, &computed_style);
+                computed_style.applyDeclaration(declaration);
             }
         }
     }
@@ -69,7 +70,7 @@ fn styleElement(
         defer allocator.free(declarations);
 
         for (declarations) |declaration| {
-            applyDeclaration(declaration, &computed_style);
+            computed_style.applyDeclaration(declaration);
         }
     }
 
@@ -83,7 +84,7 @@ fn styleElement(
     for (dom.getElement(element_id).?.children.items) |dom_child| {
         switch (dom_child) {
             .element => {
-                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element, user_agent_stylesheet);
+                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element, user_agent_stylesheet, computed_style);
                 child_idx += 1;
             },
             .text, .comment => {},
@@ -98,35 +99,4 @@ fn styleElement(
     });
 
     return @enumFromInt(nodes.items.len - 1);
-}
-
-fn applyDeclaration(declaration: Stylesheet.Rule.Style.Declaration, computed_style: *ComputedStyle) void {
-    switch (declaration) {
-        .margin => |margin| switch (margin.value) {
-            .one => |v| {
-                computed_style.margin_top = v;
-                computed_style.margin_right = v;
-                computed_style.margin_bottom = v;
-                computed_style.margin_left = v;
-            },
-            else => @panic("TODO"),
-        },
-        .@"margin-top" => |v| computed_style.margin_top = v,
-        .@"margin-right" => |v| computed_style.margin_right = v,
-        .@"margin-bottom" => |v| computed_style.margin_bottom = v,
-        .@"margin-left" => |v| computed_style.margin_left = v,
-        .@"border-top-width" => |v| computed_style.border_top_width = v.compute(),
-        .@"border-right-width" => |v| computed_style.border_right_width = v.compute(),
-        .@"border-bottom-width" => |v| computed_style.border_bottom_width = v.compute(),
-        .@"border-left-width" => |v| computed_style.border_left_width = v.compute(),
-        .@"padding-top" => |v| computed_style.padding_top = v,
-        .@"padding-right" => |v| computed_style.padding_right = v,
-        .@"padding-bottom" => |v| computed_style.padding_bottom = v,
-        .@"padding-left" => |v| computed_style.padding_left = v,
-        .width => |v| computed_style.width = v,
-        .height => |v| computed_style.height = v,
-        .display => |v| computed_style.display = v.compute(),
-        .position => |v| computed_style.position = v.compute(),
-        .@"background-color" => |v| computed_style.background_color = v,
-    }
 }
