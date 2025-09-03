@@ -148,6 +148,24 @@ pub const initial: ComputedStyle = .{
 };
 
 pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
-    // TODO: Actually implement this
-    return computed_style;
+    _ = computed_style;
+    return .{
+        .margin_top = initial.margin_top,
+        .margin_right = initial.margin_right,
+        .margin_bottom = initial.margin_bottom,
+        .margin_left = initial.margin_left,
+        .border_top_width = initial.border_top_width,
+        .border_right_width = initial.border_right_width,
+        .border_bottom_width = initial.border_bottom_width,
+        .border_left_width = initial.border_left_width,
+        .padding_top = initial.padding_top,
+        .padding_right = initial.padding_right,
+        .padding_bottom = initial.padding_bottom,
+        .padding_left = initial.padding_left,
+        .width = initial.width,
+        .height = initial.height,
+        .display = initial.display,
+        .position = initial.position,
+        .background_color = initial.background_color,
+    };
 }

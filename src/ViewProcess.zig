@@ -62,6 +62,7 @@ pub fn run(view_process: *ViewProcess) !void {
                     \\  <head>
                     \\    <style>
                     \\      foo {
+                    \\        display: block;
                     \\        margin: 20px;
                     \\      }
                     \\    </style>
