@@ -54,23 +54,32 @@ pub fn run(view_process: *ViewProcess) !void {
         }
 
         if (view_process.active) {
-            const html_source =
-                \\<!DOCTYPE html>
-                \\<html>
-                \\  <head>
-                \\  </head>
-                \\  <body style="background-color:gray">
-                \\    <foo-a style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:red;">
-                \\      <foo-b style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:green;">
-                \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
-                \\        </foo-c>
-                \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
-                \\        </foo-c>
-                \\      </foo-b>
-                \\    </foo-a>
-                \\  </body>
-                \\</html>
-            ;
+            const about_pages = std.StaticStringMap([]const u8).initComptime(&.{
+                .{
+                    "blank",
+                    \\
+                },
+                .{
+                    "newtab",
+                    \\<!DOCTYPE html>
+                    \\<html>
+                    \\  <head>
+                    \\  </head>
+                    \\  <body style="background-color:gray">
+                    \\    <foo-a style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:red;">
+                    \\      <foo-b style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:green;">
+                    \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
+                    \\        </foo-c>
+                    \\        <foo-c style="display:block;margin-top:10px;margin-right:10px;margin-bottom:10px;margin-left:10px;background-color:blue;height:100px;">
+                    \\        </foo-c>
+                    \\      </foo-b>
+                    \\    </foo-a>
+                    \\  </body>
+                    \\</html>
+                },
+            });
+
+            const html_source = try engine.fetch.fetch(view_process.url, about_pages);
 
             const update_start_time = std.time.milliTimestamp();
 
