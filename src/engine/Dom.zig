@@ -3,24 +3,24 @@ const Dom = @This();
 const std = @import("std");
 
 allocator: std.mem.Allocator,
-documents: std.ArrayListUnmanaged(Document),
-elements: std.ArrayListUnmanaged(Element),
-texts: std.ArrayListUnmanaged(Text),
-comments: std.ArrayListUnmanaged(Comment),
-attributes: std.ArrayListUnmanaged(Attribute),
-document_types: std.ArrayListUnmanaged(DocumentType),
+documents: std.ArrayList(Document),
+elements: std.ArrayList(Element),
+texts: std.ArrayList(Text),
+comments: std.ArrayList(Comment),
+attributes: std.ArrayList(Attribute),
+document_types: std.ArrayList(DocumentType),
 strings: std.StringHashMapUnmanaged([]const u8),
 
 pub fn init(allocator: std.mem.Allocator) Dom {
     return .{
         .allocator = allocator,
-        .documents = .{},
-        .elements = .{},
-        .texts = .{},
-        .comments = .{},
-        .attributes = .{},
-        .document_types = .{},
-        .strings = .{},
+        .documents = .empty,
+        .elements = .empty,
+        .texts = .empty,
+        .comments = .empty,
+        .attributes = .empty,
+        .document_types = .empty,
+        .strings = .empty,
     };
 }
 
@@ -84,7 +84,7 @@ pub const Parent = union(enum) {
 };
 
 pub const Document = struct {
-    children: std.ArrayListUnmanaged(DocumentChild) = .{},
+    children: std.ArrayList(DocumentChild) = .{},
     // Shortcuts
     element: ?ElementId = null,
     document_type: ?DocumentTypeId = null,
@@ -93,8 +93,8 @@ pub const Document = struct {
 pub const Element = struct {
     tag_name: []const u8,
     namespace: ?[]const u8 = null,
-    attributes: std.ArrayListUnmanaged(AttributeId) = .{},
-    children: std.ArrayListUnmanaged(ContentNode) = .{},
+    attributes: std.ArrayList(AttributeId) = .{},
+    children: std.ArrayList(ContentNode) = .{},
     parent: ?Parent = null,
 };
 

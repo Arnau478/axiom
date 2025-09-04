@@ -18,7 +18,7 @@ pub const Tab = struct {
 allocator: std.mem.Allocator,
 window: *glfw.Window,
 gl_procs: gl.ProcTable,
-tabs: std.ArrayListUnmanaged(Tab),
+tabs: std.ArrayList(Tab),
 current_tab_index: usize,
 
 pub fn init(allocator: std.mem.Allocator) !Browser {

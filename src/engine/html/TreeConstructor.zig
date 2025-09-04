@@ -12,7 +12,7 @@ insertion_mode: InsertionMode,
 original_insertion_mode: ?InsertionMode,
 scripting_enabled: bool,
 frameset_ok: bool,
-open_elements: std.ArrayListUnmanaged(Dom.ElementId),
+open_elements: std.ArrayList(Dom.ElementId),
 head: ?Dom.ElementId,
 
 pub fn init(allocator: std.mem.Allocator, dom: *Dom, document_id: Dom.DocumentId) TreeConstructor {

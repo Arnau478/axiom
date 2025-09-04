@@ -8,7 +8,7 @@ const Size = @import("Size.zig");
 const Rect = @import("Rect.zig");
 const BoxModel = @import("BoxModel.zig");
 
-children: std.ArrayListUnmanaged(*Box),
+children: std.ArrayList(*Box),
 parent: ?*Box,
 computed_style: style.ComputedStyle,
 element: ?Dom.ElementId,
