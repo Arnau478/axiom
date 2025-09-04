@@ -8,35 +8,35 @@ pub const StyleTree = @import("style/StyleTree.zig");
 pub const ComputedStyle = @import("style/ComputedStyle.zig");
 
 pub fn style(allocator: std.mem.Allocator, dom: Dom, document_id: Dom.DocumentId, user_agent_stylesheet: ?Stylesheet) !StyleTree {
-    var nodes = std.ArrayList(StyleTree.Node).init(allocator);
-    defer nodes.deinit();
-    var computed_styles = std.ArrayList(ComputedStyle).init(allocator);
-    defer computed_styles.deinit();
+    var nodes: std.ArrayList(StyleTree.Node) = .empty;
+    defer nodes.deinit(allocator);
+    var computed_styles: std.ArrayList(ComputedStyle) = .empty;
+    defer computed_styles.deinit(allocator);
 
     const root_element_id = dom.getDocument(document_id).?.element.?;
 
-    var stylesheets = std.ArrayList(Stylesheet).init(allocator);
+    var stylesheets: std.ArrayList(Stylesheet) = .empty;
     defer {
         for (stylesheets.items, 0..) |stylesheet, i| {
             if (user_agent_stylesheet != null and i == 0) continue;
             stylesheet.deinit(allocator);
         }
-        stylesheets.deinit();
+        stylesheets.deinit(allocator);
     }
 
-    if (user_agent_stylesheet) |stylesheet| try stylesheets.append(stylesheet);
+    if (user_agent_stylesheet) |stylesheet| try stylesheets.append(allocator, stylesheet);
 
     var css_source_iter = dom.styleSourceIterator(document_id);
     while (css_source_iter.next()) |source| {
-        try stylesheets.append(try css.parseStylesheet(allocator, source));
+        try stylesheets.append(allocator, try css.parseStylesheet(allocator, source));
     }
 
     const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, stylesheets.items, null);
 
     return .{
         .allocator = allocator,
-        .nodes = try nodes.toOwnedSlice(),
-        .computed_styles = try computed_styles.toOwnedSlice(),
+        .nodes = try nodes.toOwnedSlice(allocator),
+        .computed_styles = try computed_styles.toOwnedSlice(allocator),
         .root = root_style_node,
     };
 }
@@ -57,14 +57,14 @@ fn styleElement(
     var computed_style = if (parent_computed_style) |parent| ComputedStyle.inheritedOrInitial(parent) else ComputedStyle.initial;
 
     for (stylesheets) |stylesheet| {
-        var rules = std.ArrayList(Stylesheet.Rule.Style).init(allocator);
-        defer rules.deinit();
+        var rules: std.ArrayList(Stylesheet.Rule.Style) = .empty;
+        defer rules.deinit(allocator);
 
         for (stylesheet.rules) |rule| {
             switch (rule) {
                 .style => |r| {
                     if (r.matches(dom, element_id)) {
-                        try rules.append(r);
+                        try rules.append(allocator, r);
                     }
                 },
             }
@@ -94,7 +94,7 @@ fn styleElement(
 
     computed_style.flush();
 
-    try computed_styles.append(computed_style);
+    try computed_styles.append(allocator, computed_style);
 
     const computed_style_id: StyleTree.ComputedStyleId = @enumFromInt(computed_styles.items.len - 1);
 
@@ -110,7 +110,7 @@ fn styleElement(
     }
     children = try allocator.realloc(children, child_idx);
 
-    try nodes.append(.{
+    try nodes.append(allocator, .{
         .element = element_id,
         .children = children,
         .computed_style = computed_style_id,

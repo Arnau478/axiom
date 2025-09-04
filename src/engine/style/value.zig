@@ -193,7 +193,7 @@ fn parseField(comptime FieldType: type, comptime field_name: []const u8, source:
                 inline for (comptime std.meta.fieldNames(FieldType)) |union_field| {
                     var t = tokens.*;
                     const res = parseField(
-                        std.meta.FieldType(FieldType, @field(FieldType, union_field)),
+                        @FieldType(FieldType, union_field),
                         union_field,
                         source,
                         &t,
@@ -239,13 +239,13 @@ pub fn parse(comptime T: type, source: []const u8, tokens: []const css.Token) ?T
 test parse {
     const source = "2px #ff0000";
 
-    var tokens = std.ArrayList(css.Token).init(std.testing.allocator);
-    defer tokens.deinit();
+    var tokens: std.ArrayList(css.Token) = .empty;
+    defer tokens.deinit(std.testing.allocator);
 
     var iter = css.tokenIterator(source);
 
     while (iter.next()) |token| {
-        try tokens.append(token);
+        try tokens.append(std.testing.allocator, token);
     }
 
     const Value = struct {
@@ -264,13 +264,13 @@ test parse {
 test "parse enum keywords" {
     const source = "hello-world";
 
-    var tokens = std.ArrayList(css.Token).init(std.testing.allocator);
-    defer tokens.deinit();
+    var tokens: std.ArrayList(css.Token) = .empty;
+    defer tokens.deinit(std.testing.allocator);
 
     var iter = css.tokenIterator(source);
 
     while (iter.next()) |token| {
-        try tokens.append(token);
+        try tokens.append(std.testing.allocator, token);
     }
 
     const Value = struct {

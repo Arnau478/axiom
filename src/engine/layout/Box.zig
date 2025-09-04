@@ -222,11 +222,12 @@ pub fn finalizeDimensions(box: *Box, containing_block: Rect) void {
     if (height) |h| box.box_model.content_box.size.height = h;
 }
 
-pub fn printTree(box: *const Box, dom: Dom, writer: std.io.AnyWriter) !void {
+pub fn printTree(box: *const Box, dom: Dom, writer: *std.Io.Writer) !void {
     try box.printTreeWithDepth(dom, writer, 0);
+    try writer.flush();
 }
 
-fn printTreeWithDepth(box: *const Box, dom: Dom, writer: std.io.AnyWriter, depth: usize) !void {
+fn printTreeWithDepth(box: *const Box, dom: Dom, writer: *std.Io.Writer, depth: usize) !void {
     for (0..depth) |_| try writer.writeAll("  ");
 
     if (box.element) |element_id| {

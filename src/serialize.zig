@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn write(comptime T: type, value: T, writer: std.io.AnyWriter) !void {
+pub fn write(comptime T: type, value: T, writer: *std.Io.Writer) !void {
     switch (T) {
         void => {},
         else => switch (@typeInfo(T)) {
@@ -35,7 +35,7 @@ pub fn write(comptime T: type, value: T, writer: std.io.AnyWriter) !void {
     }
 }
 
-pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: std.io.AnyReader) !T {
+pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: *std.Io.Reader) !T {
     return switch (T) {
         void => {},
         else => switch (@typeInfo(T)) {
@@ -51,7 +51,7 @@ pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: std.io.AnyRe
                 },
                 else => @compileError("Cannot serialize " ++ @typeName(T)),
             },
-            .int => try reader.readInt(T, .little),
+            .int => try reader.takeInt(T, .little),
             .@"struct" => |s| value: {
                 var value: T = undefined;
                 inline for (s.fields) |field| {

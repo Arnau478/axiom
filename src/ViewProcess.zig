@@ -25,18 +25,27 @@ pub fn deinit(view_process: ViewProcess) void {
 }
 
 pub fn run(view_process: *ViewProcess) !void {
-    const stdin = std.io.getStdIn().reader();
-    const stdout = std.io.getStdOut().writer();
+    var stdin_buffer: [1024]u8 = undefined;
+    var stdin_writer = std.fs.File.stdin().reader(&stdin_buffer);
+    const stdin = &stdin_writer.interface;
+
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    const stderr = &stderr_writer.interface;
 
     // TODO: Fetch ua.css via IPC
     const user_agent_stylesheet = try engine.style.css.parseStylesheet(view_process.allocator, @embedFile("ua.css"));
     defer user_agent_stylesheet.deinit(view_process.allocator);
 
     while (true) {
-        const syn_byte = try stdin.readByte();
+        const syn_byte = try stdin.takeByte();
         if (syn_byte != 0x16) std.process.fatal("Invalid request, expected SYN (0x16), got 0x{x:0>2}", .{syn_byte});
 
-        const request = try serialize.read(ipc.Request, view_process.allocator, stdin.any());
+        const request = try serialize.read(ipc.Request, view_process.allocator, stdin);
         switch (request) {
             .navigate_to_url => |url| {
                 errdefer view_process.allocator.free(url);
@@ -69,7 +78,7 @@ pub fn run(view_process: *ViewProcess) !void {
 
             try engine.html.parse(view_process.allocator, &dom, document, html_source);
 
-            try dom.printDocument(document, std.io.getStdErr().writer());
+            try dom.printDocument(document, stderr);
 
             const style_tree = try engine.style.style(view_process.allocator, dom, document, user_agent_stylesheet);
             defer style_tree.deinit();
@@ -77,7 +86,7 @@ pub fn run(view_process: *ViewProcess) !void {
             var box_tree = try engine.layout.generateBox(view_process.allocator, style_tree, style_tree.root);
             defer box_tree.deinit(view_process.allocator);
 
-            try box_tree.printTree(dom, std.io.getStdErr().writer().any());
+            try box_tree.printTree(dom, stderr);
 
             engine.layout.reflow(box_tree, .{
                 .width = @floatFromInt(view_process.viewport_width),
@@ -93,7 +102,8 @@ pub fn run(view_process: *ViewProcess) !void {
             std.log.debug("Update time: {d}ms", .{update_time});
 
             try stdout.writeByte(0x06);
-            try serialize.write(ipc.Response, .{ .new_frame = draw_list }, stdout.any());
+            try serialize.write(ipc.Response, .{ .new_frame = draw_list }, stdout);
+            try stdout.flush();
         }
     }
 }

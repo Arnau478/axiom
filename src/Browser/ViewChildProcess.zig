@@ -29,15 +29,25 @@ pub fn kill(process: *ViewChildProcess) void {
 }
 
 pub fn send(process: ViewChildProcess, request: ipc.Request) error{RequestError}!void {
-    process.child.stdin.?.writer().writeByte(0x16) catch return error.RequestError; // SYN
+    var stdin_buffer: [1024]u8 = undefined;
+    var stdin_writer = process.child.stdin.?.writer(&stdin_buffer);
+    const stdin = &stdin_writer.interface;
 
-    serialize.write(ipc.Request, request, process.child.stdin.?.writer().any()) catch return error.RequestError;
+    stdin.writeByte(0x16) catch return error.RequestError; // SYN
+
+    serialize.write(ipc.Request, request, stdin) catch return error.RequestError;
+
+    stdin.flush() catch return error.RequestError;
 }
 
 pub fn recv(process: ViewChildProcess, allocator: std.mem.Allocator, comptime response_type: std.meta.Tag(ipc.Response)) error{InvalidResponse}!@FieldType(ipc.Response, @tagName(response_type)) {
-    const ack_byte = process.child.stdout.?.reader().readByte() catch return error.InvalidResponse;
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_reader = process.child.stdout.?.reader(&stdout_buffer);
+    const stdout = &stdout_reader.interface;
+
+    const ack_byte = stdout.takeByte() catch return error.InvalidResponse;
     if (ack_byte != 0x06) return error.InvalidResponse;
-    const response = serialize.read(ipc.Response, allocator, process.child.stdout.?.reader().any()) catch return error.InvalidResponse;
+    const response = serialize.read(ipc.Response, allocator, stdout) catch return error.InvalidResponse;
 
     if (std.meta.activeTag(response) != response_type) return error.InvalidResponse;
     return @field(response, @tagName(response_type));

@@ -332,7 +332,7 @@ pub fn styleSourceIterator(dom: *const Dom, document_id: DocumentId) StyleSource
     return .{ .dom = dom, .current = dom.getDocument(document_id).?.element.? };
 }
 
-pub fn printDocument(dom: Dom, document_id: DocumentId, writer: anytype) !void {
+pub fn printDocument(dom: Dom, document_id: DocumentId, writer: *std.Io.Writer) !void {
     const document = dom.getDocument(document_id).?;
 
     for (document.children.items) |child| {
@@ -350,6 +350,8 @@ pub fn printDocument(dom: Dom, document_id: DocumentId, writer: anytype) !void {
             },
         }
     }
+
+    try writer.flush();
 }
 
 fn printElement(dom: Dom, element_id: ElementId, writer: anytype, indent: usize) !void {

@@ -2,7 +2,7 @@
     .name = .axiom,
     .version = "0.1.0",
     .fingerprint = 0x5a9bbbb18162c374,
-    .minimum_zig_version = "0.14.1",
+    .minimum_zig_version = "0.15.0",
     .dependencies = .{
         .zglfw = .{
             .url = "git+https://github.com/zig-gamedev/zglfw#feeeff9386dd44ba2c18488113023865c41b80a4",

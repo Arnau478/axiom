@@ -339,11 +339,11 @@ const Parser = struct {
         if (property_token.type != .ident) return error.SyntaxError;
         if (parser.peekToken() == null or parser.consumeToken().?.type != .colon) return error.SyntaxError;
 
-        var tokens = std.ArrayList(Token).init(parser.allocator);
-        defer tokens.deinit();
+        var tokens: std.ArrayList(Token) = .empty;
+        defer tokens.deinit(parser.allocator);
 
         while (parser.peekToken() != null and parser.peekToken().?.type != .semicolon and parser.peekToken().?.type != .close_curly) {
-            try tokens.append(parser.consumeToken().?);
+            try tokens.append(parser.allocator, parser.consumeToken().?);
         }
 
         if (parser.peekToken() != null and parser.peekToken().?.type == .semicolon) {
@@ -362,14 +362,14 @@ const Parser = struct {
     }
 
     fn declarationList(parser: *Parser) ![]const Stylesheet.Rule.Style.Declaration {
-        var declarations = std.ArrayList(Stylesheet.Rule.Style.Declaration).init(parser.allocator);
-        defer declarations.deinit();
+        var declarations: std.ArrayList(Stylesheet.Rule.Style.Declaration) = .empty;
+        defer declarations.deinit(parser.allocator);
 
         while (parser.peekToken() != null and parser.peekToken().?.type != .close_curly) {
-            try declarations.append(try parser.declaration());
+            try declarations.append(parser.allocator, try parser.declaration());
         }
 
-        return try declarations.toOwnedSlice();
+        return try declarations.toOwnedSlice(parser.allocator);
     }
 
     fn selector(parser: *Parser) !Stylesheet.Rule.Style.Selector {
@@ -386,13 +386,13 @@ const Parser = struct {
     }
 
     fn rule(parser: *Parser) !Stylesheet.Rule {
-        var selectors = std.ArrayList(Stylesheet.Rule.Style.Selector).init(parser.allocator);
-        defer selectors.deinit();
+        var selectors: std.ArrayList(Stylesheet.Rule.Style.Selector) = .empty;
+        defer selectors.deinit(parser.allocator);
 
-        try selectors.append(try parser.selector());
+        try selectors.append(parser.allocator, try parser.selector());
         while (parser.peekToken() != null and parser.peekToken().?.type == .comma) {
             _ = parser.consumeToken().?;
-            try selectors.append(try parser.selector());
+            try selectors.append(parser.allocator, try parser.selector());
         }
 
         if (parser.peekToken() == null or parser.consumeToken().?.type != .open_curly) return error.SyntaxError;
@@ -403,22 +403,22 @@ const Parser = struct {
 
         return .{
             .style = .{
-                .selectors = try selectors.toOwnedSlice(),
+                .selectors = try selectors.toOwnedSlice(parser.allocator),
                 .declarations = declarations,
             },
         };
     }
 
     fn stylesheet(parser: *Parser) !Stylesheet {
-        var rules = std.ArrayList(Stylesheet.Rule).init(parser.allocator);
-        defer rules.deinit();
+        var rules: std.ArrayList(Stylesheet.Rule) = .empty;
+        defer rules.deinit(parser.allocator);
 
         while (parser.peekToken() != null) {
-            try rules.append(try parser.rule());
+            try rules.append(parser.allocator, try parser.rule());
         }
 
         return .{
-            .rules = try rules.toOwnedSlice(),
+            .rules = try rules.toOwnedSlice(parser.allocator),
         };
     }
 };
