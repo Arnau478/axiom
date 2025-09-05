@@ -17,6 +17,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const freefont_dep = b.dependency("freefont", .{});
+
     const engine_build_options = b.addOptions();
     engine_build_options.addOption(render.Backend, "render_backend", render_backend);
     engine_build_options.addOption(bool, "render_wireframe_mode", render_wireframe_mode);
@@ -42,6 +44,8 @@ pub fn build(b: *std.Build) void {
     }
 
     exe_mod.addImport("engine", engine_mod);
+
+    exe_mod.addAnonymousImport("default_font", .{ .root_source_file = freefont_dep.path("ttf/FreeSans.ttf") });
 
     switch (render_backend) {
         .opengl => {

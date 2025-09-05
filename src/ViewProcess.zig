@@ -37,9 +37,27 @@ pub fn run(view_process: *ViewProcess) !void {
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
     const stderr = &stderr_writer.interface;
 
-    // TODO: Fetch ua.css via IPC
     const user_agent_stylesheet = try engine.style.css.parseStylesheet(view_process.allocator, @embedFile("ua.css"));
     defer user_agent_stylesheet.deinit(view_process.allocator);
+
+    var font_reader: std.Io.Reader = .fixed(@embedFile("default_font"));
+    const font = try engine.Font.parse(view_process.allocator, &font_reader);
+    defer font.deinit(view_process.allocator);
+
+    const text_buf = try font.rasterizeCharacter(view_process.allocator, 'w', 64);
+    defer text_buf.deinit(view_process.allocator);
+
+    for (0..text_buf.height) |y| {
+        for (0..text_buf.width) |x| {
+            try stderr.writeByte(switch (text_buf.at(x, y).*) {
+                0 => '.',
+                1...254 => '~',
+                255 => '#',
+            });
+        }
+        try stderr.writeByte('\n');
+    }
+    try stderr.flush();
 
     while (true) {
         const syn_byte = try stdin.takeByte();
