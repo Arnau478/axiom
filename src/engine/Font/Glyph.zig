@@ -42,8 +42,6 @@ pub fn rasterize(glyph: Glyph, buffer: Buffer, size: usize) void {
             var inside = false;
 
             for (glyph.contours) |contour| {
-                if (buffer_x == 0 and buffer_y == 0) std.log.debug("{any}", .{contour.points});
-
                 for (0..contour.points.len) |point_idx| {
                     const p1 = contour.points[point_idx];
                     const p2 = contour.points[(point_idx + 1) % contour.points.len];

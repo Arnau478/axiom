@@ -310,7 +310,60 @@ fn getGlyphFromOffset(ttf: Ttf, allocator: std.mem.Allocator, glyph_offset: u32)
             },
         };
     } else {
-        @panic("TODO");
+        var contours: std.ArrayList(Glyph.Contour) = .empty;
+        errdefer contours.deinit(allocator);
+
+        while (true) {
+            const flags = reader.takeStruct(packed struct(u16) {
+                arg_1_and_2_are_words: bool,
+                args_are_xy_values: bool,
+                round_xy_to_grid: bool,
+                we_have_a_scale: bool,
+                obsolete: u1 = 0,
+                more_components: bool,
+                we_have_an_x_and_y_scale: bool,
+                we_have_a_two_by_two: bool,
+                we_have_instructions: bool,
+                use_my_metrics: bool,
+                overlap_compound: bool,
+                padding: u5 = 0,
+            }, .big) catch return null;
+            const component_index = reader.takeInt(u16, .big) catch return null;
+
+            if (flags.args_are_xy_values) {
+                const x_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
+                const y_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
+
+                const component_offset = ttf.glyphOffsetFromIndex(component_index);
+                if (try ttf.getGlyphFromOffset(allocator, component_offset)) |component| {
+                    defer component.deinit(allocator);
+
+                    for (component.contours) |contour| {
+                        const points = try allocator.dupe(Glyph.Point, contour.points);
+                        errdefer allocator.free(points);
+
+                        for (points) |*point| {
+                            point.x += ttf.unitsToEm(x_offset);
+                            point.y += ttf.unitsToEm(y_offset);
+                        }
+
+                        try contours.append(allocator, .{ .points = points });
+                    }
+                }
+            } else @panic("TODO");
+
+            if (!flags.more_components) break;
+        }
+
+        return .{
+            .contours = try contours.toOwnedSlice(allocator),
+            .bounding_box = .{
+                .x = ttf.unitsToEm(x_min),
+                .y = ttf.unitsToEm(y_min),
+                .width = ttf.unitsToEm(x_max - x_min),
+                .height = ttf.unitsToEm(y_max - y_min),
+            },
+        };
     }
 }
 

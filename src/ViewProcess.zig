@@ -44,7 +44,7 @@ pub fn run(view_process: *ViewProcess) !void {
     const font = try engine.Font.parse(view_process.allocator, &font_reader);
     defer font.deinit(view_process.allocator);
 
-    const text_buf = try font.rasterizeCharacter(view_process.allocator, 'w', 64);
+    const text_buf = try font.rasterizeCharacter(view_process.allocator, 'à', 64);
     defer text_buf.deinit(view_process.allocator);
 
     for (0..text_buf.height) |y| {
