@@ -3,8 +3,8 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const vulkan_override_registry = b.option([]const u8, "vulkan-override-registry", "Override the path to the Vulkan registry");
-    const paint_box_model = b.option(bool, "paint-box-model", "Paint the CSS box model for debugging purposes") orelse false;
+    const vulkan_override_registry = b.option([]const u8, "vulkan_override_registry", "Override the path to the Vulkan registry");
+    const paint_box_model = b.option(bool, "paint_box_model", "Paint the CSS box model for debugging purposes") orelse false;
 
     const zglfw_dep = b.dependency("zglfw", .{
         .target = target,
@@ -40,7 +40,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    vulkan_mod.addImport("vulkan", vulkan_dep.module("vulkan-zig"));
+    vulkan_mod.addImport("vk", vulkan_dep.module("vulkan-zig"));
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
