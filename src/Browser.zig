@@ -2,7 +2,6 @@ const Browser = @This();
 
 const std = @import("std");
 const glfw = @import("glfw");
-const gl = @import("gl");
 const engine = @import("engine");
 
 pub const ViewChildProcess = @import("Browser/ViewChildProcess.zig");
@@ -17,25 +16,27 @@ pub const Tab = struct {
 
 allocator: std.mem.Allocator,
 window: *glfw.Window,
-gl_procs: gl.ProcTable,
 tabs: std.ArrayList(Tab),
 current_tab_index: usize,
 
+// TODO: Proper window sizing
+const window_width = 500;
+const window_height = 400;
+
 pub fn init(allocator: std.mem.Allocator) !Browser {
     try glfw.init();
-    const window = try glfw.Window.create(600, 600, "axiom", null);
+
+    glfw.WindowHint.set(.client_api, .no_api);
+    glfw.WindowHint.set(.resizable, false);
+
+    const window = try glfw.Window.create(window_width, window_height, "axiom", null);
 
     var browser: Browser = .{
         .allocator = allocator,
         .window = window,
-        .gl_procs = undefined,
         .tabs = .empty,
         .current_tab_index = 0,
     };
-
-    glfw.makeContextCurrent(browser.window);
-    if (!browser.gl_procs.init(glfw.getProcAddress)) @panic("TODO");
-    glfw.swapInterval(1);
 
     _ = try browser.newTab();
 
@@ -67,38 +68,14 @@ fn currentTab(browser: *Browser) *Tab {
 }
 
 pub fn run(browser: *Browser) !void {
-    glfw.makeContextCurrent(browser.window);
-    defer glfw.makeContextCurrent(null);
-    gl.makeProcTableCurrent(&browser.gl_procs);
-    defer gl.makeProcTableCurrent(null);
-
     while (!browser.window.shouldClose()) {
         glfw.pollEvents();
 
         if (browser.tabs.items.len == 0) break;
 
-        const window_size = browser.window.getFramebufferSize();
-        const window_width: usize = @intCast(window_size[0]);
-        const window_height: usize = @intCast(window_size[1]);
-
-        const viewport: engine.render.Viewport = .{
-            .x = 0,
-            .y = 25,
-            .width = window_width,
-            .height = window_height - 25,
-        };
-
-        try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = viewport.width, .height = viewport.height } });
+        try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = window_width, .height = window_height } });
 
         const draw_list = try browser.currentTab().view_process.recv(browser.allocator, .new_frame);
         defer browser.allocator.free(draw_list);
-
-        const draw_start_time = std.time.milliTimestamp();
-        engine.render.draw(draw_list, viewport, window_width, window_height);
-        const draw_end_time = std.time.milliTimestamp();
-        const draw_time = draw_end_time - draw_start_time;
-        std.log.debug("Draw time: {d}ms", .{draw_time});
-
-        browser.window.swapBuffers();
     }
 }

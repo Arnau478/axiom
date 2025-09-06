@@ -1,16 +1,10 @@
 const std = @import("std");
-const render = @import("src/engine/render.zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-
     const optimize = b.standardOptimizeOption(.{});
-
-    const render_backend = b.option(render.Backend, "render_backend", "The render backend to use") orelse .opengl;
-
-    const render_wireframe_mode = b.option(bool, "render_wireframe_mode", "The render backend to use") orelse false;
-
-    const paint_box_model = b.option(bool, "paint_box_model", "Paint the CSS box model for debugging purposes") orelse false;
+    const vulkan_override_registry = b.option([]const u8, "vulkan-override-registry", "Override the path to the Vulkan registry");
+    const paint_box_model = b.option(bool, "paint-box-model", "Paint the CSS box model for debugging purposes") orelse false;
 
     const zglfw_dep = b.dependency("zglfw", .{
         .target = target,
@@ -19,18 +13,34 @@ pub fn build(b: *std.Build) void {
 
     const freefont_dep = b.dependency("freefont", .{});
 
+    const vulkan_registry = b.dependency("vulkan_headers", .{}).path("registry/vk.xml");
+    const vulkan_registry_path: std.Build.LazyPath = if (vulkan_override_registry) |override_registry|
+        .{ .cwd_relative = override_registry }
+    else
+        vulkan_registry;
+
+    const vulkan_dep = b.dependency("vulkan_zig", .{
+        .registry = vulkan_registry_path,
+    });
+
     const engine_build_options = b.addOptions();
-    engine_build_options.addOption(render.Backend, "render_backend", render_backend);
-    engine_build_options.addOption(bool, "render_wireframe_mode", render_wireframe_mode);
     engine_build_options.addOption(bool, "paint_box_model", paint_box_model);
 
-    const engine_mod = b.createModule(.{
+    const engine_mod = b.addModule("engine", .{
         .root_source_file = b.path("src/engine/engine.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     engine_mod.addOptions("build_options", engine_build_options);
+
+    const vulkan_mod = b.addModule("vulkan", .{
+        .root_source_file = b.path("src/vulkan/vulkan.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    vulkan_mod.addImport("vulkan", vulkan_dep.module("vulkan-zig"));
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -44,22 +54,9 @@ pub fn build(b: *std.Build) void {
     }
 
     exe_mod.addImport("engine", engine_mod);
+    exe_mod.addImport("vulkan", vulkan_mod);
 
     exe_mod.addAnonymousImport("default_font", .{ .root_source_file = freefont_dep.path("ttf/FreeSans.ttf") });
-
-    switch (render_backend) {
-        .opengl => {
-            const gl = @import("zigglgen").generateBindingsModule(b, .{
-                .api = .gl,
-                .version = .@"4.3",
-                .profile = .core,
-                .extensions = &.{},
-            });
-
-            engine_mod.addImport("gl", gl);
-            exe_mod.addImport("gl", gl);
-        },
-    }
 
     const exe = b.addExecutable(.{
         .name = "axiom",
