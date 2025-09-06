@@ -96,15 +96,11 @@ pub fn run(view_process: *ViewProcess) !void {
 
             try engine.html.parse(view_process.allocator, &dom, document, html_source);
 
-            try dom.printDocument(document, stderr);
-
             const style_tree = try engine.style.style(view_process.allocator, dom, document, user_agent_stylesheet);
             defer style_tree.deinit();
 
             var box_tree = try engine.layout.generateBox(view_process.allocator, style_tree, style_tree.root);
             defer box_tree.deinit(view_process.allocator);
-
-            try box_tree.printTree(dom, stderr);
 
             engine.layout.reflow(box_tree, .{
                 .width = @floatFromInt(view_process.viewport_width),

@@ -3,6 +3,7 @@ const Browser = @This();
 const std = @import("std");
 const glfw = @import("glfw");
 const engine = @import("engine");
+const vulkan = @import("vulkan");
 
 pub const ViewChildProcess = @import("Browser/ViewChildProcess.zig");
 
@@ -16,6 +17,7 @@ pub const Tab = struct {
 
 allocator: std.mem.Allocator,
 window: *glfw.Window,
+renderer: vulkan.Renderer,
 tabs: std.ArrayList(Tab),
 current_tab_index: usize,
 
@@ -34,6 +36,14 @@ pub fn init(allocator: std.mem.Allocator) !Browser {
     var browser: Browser = .{
         .allocator = allocator,
         .window = window,
+        .renderer = try .init(.{
+            .allocator = allocator,
+            .loader = @extern(*const vulkan.GetInstanceProcAddressFunction, .{ .name = "glfwGetInstanceProcAddress" }),
+            .extensions = try glfw.getRequiredInstanceExtensions(),
+            .application_name = "axiom",
+            .createWindowSurface = @extern(*const vulkan.CreateWindowSurfaceFunction, .{ .name = "glfwCreateWindowSurface" }),
+            .create_window_surface_ctx = window,
+        }),
         .tabs = .empty,
         .current_tab_index = 0,
     };
@@ -48,6 +58,8 @@ pub fn deinit(browser: *Browser) void {
         tab.close();
     }
     browser.tabs.deinit(browser.allocator);
+
+    browser.renderer.deinit();
 
     browser.window.destroy();
     glfw.terminate();
@@ -68,6 +80,7 @@ fn currentTab(browser: *Browser) *Tab {
 }
 
 pub fn run(browser: *Browser) !void {
+    if (true) return;
     while (!browser.window.shouldClose()) {
         glfw.pollEvents();
 
