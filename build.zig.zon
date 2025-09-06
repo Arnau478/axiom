@@ -8,13 +8,17 @@
             .url = "git+https://github.com/zig-gamedev/zglfw#feeeff9386dd44ba2c18488113023865c41b80a4",
             .hash = "zglfw-0.10.0-dev-zgVDNLyhIQCZR_rbIf7hnCKuifzcmPOLOQhd_hrqq8cl",
         },
-        .zigglgen = .{
-            .url = "git+https://github.com/castholm/zigglgen.git#744d8b6617a7eb8df15f5922faa002e0b5234025",
-            .hash = "zigglgen-0.4.0-bmyqLXT4LQCQviz5TRTU14ntLCRUxLNTK0Us3v93jyxR",
-        },
         .freefont = .{
             .url = "git+https://github.com/Maxattax97/gnu-freefont#c5aaf46f81def58d8320ccda3081cd5546b72f7c",
             .hash = "N-V-__8AABCv-QJjigWSAxfK524WYpxViqu9SmzOEfhKi4_r",
+        },
+        .vulkan_zig = .{
+            .url = "git+https://github.com/Snektron/vulkan-zig?ref=zig-0.15-compat#f879074293f0e2f718c93fd19cc0a96260a3aa52",
+            .hash = "vulkan-0.0.0-r7Ytx6hBAwBUnt0XA-uOkR2hda4fAHFhQITNTgJpnFkY",
+        },
+        .vulkan_headers = .{
+            .url = "https://github.com/KhronosGroup/Vulkan-Headers/archive/v1.3.283.tar.gz",
+            .hash = "N-V-__8AAAkkoQGn5z1yoNVrwqZfnYmZp8AZ5CJgoHRMQI0c",
         },
     },
     .paths = .{""},

@@ -1,10 +1,28 @@
 const std = @import("std");
 const build_options = @import("build_options");
 const layout = @import("layout.zig");
-const render = @import("render.zig");
 
-pub fn paint(allocator: std.mem.Allocator, box: *const layout.Box) ![]const render.Command {
-    var commands: std.ArrayList(render.Command) = .empty;
+pub const Color = struct {
+    r: u8,
+    g: u8,
+    b: u8,
+};
+
+pub const Command = union(enum(u8)) {
+    clear: Color,
+    simple_rect: SimpleRect,
+
+    pub const SimpleRect = struct {
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        color: Color,
+    };
+};
+
+pub fn paint(allocator: std.mem.Allocator, box: *const layout.Box) ![]const Command {
+    var commands: std.ArrayList(Command) = .empty;
     defer commands.deinit(allocator);
 
     try paintBox(allocator, box, &commands);
@@ -12,7 +30,7 @@ pub fn paint(allocator: std.mem.Allocator, box: *const layout.Box) ![]const rend
     return try commands.toOwnedSlice(allocator);
 }
 
-fn paintBox(allocator: std.mem.Allocator, box: *const layout.Box, commands: *std.ArrayList(render.Command)) !void {
+fn paintBox(allocator: std.mem.Allocator, box: *const layout.Box, commands: *std.ArrayList(Command)) !void {
     if (box.computed_style.background_color.a != 0) {
         std.debug.assert(box.computed_style.background_color.a == 255); // TODO: Transparency
 

@@ -10,5 +10,5 @@ pub const Request = union(enum(u8)) {
 };
 
 pub const Response = union(enum(u8)) {
-    new_frame: []const engine.render.Command,
+    new_frame: []const engine.paint.Command,
 };
