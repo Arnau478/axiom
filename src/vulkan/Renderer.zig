@@ -6,6 +6,8 @@ const vulkan = @import("vulkan.zig");
 
 const log = std.log.scoped(.vulkan);
 
+const required_device_extensions = [_][*:0]const u8{vk.extensions.khr_swapchain.name};
+
 fn debugUtilsMessengerCallback(
     severity: vk.DebugUtilsMessageSeverityFlagsEXT,
     msg_type: vk.DebugUtilsMessageTypeFlagsEXT,
@@ -45,6 +47,19 @@ fn debugUtilsMessengerCallback(
 const QueueFamilyIndices = struct {
     graphics: u32,
     present: u32,
+
+    fn count(indices: QueueFamilyIndices) u32 {
+        const fields = comptime std.meta.fieldNames(QueueFamilyIndices);
+        var res: u32 = @intCast(fields.len);
+        inline for (0..fields.len) |i| {
+            inline for (0..i) |j| {
+                if (@field(indices, fields[i]) == @field(indices, fields[j])) {
+                    res -= 1;
+                }
+            }
+        }
+        return res;
+    }
 };
 
 fn findQueueFamilies(allocator: std.mem.Allocator, instance: vk.InstanceProxy, device: vk.PhysicalDevice, surface: vk.SurfaceKHR) !?QueueFamilyIndices {
@@ -92,6 +107,23 @@ fn pickPhyisicalDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxy,
 
         if (queue_families == null) score = 0;
 
+        const extensions = try instance.enumerateDeviceExtensionPropertiesAlloc(device, null, allocator);
+        defer allocator.free(extensions);
+
+        for (required_device_extensions) |required| {
+            var found = false;
+
+            for (extensions) |available| {
+                if (std.mem.eql(u8, std.mem.span(@as([*:0]const u8, @ptrCast(&available.extension_name))), std.mem.span(required))) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) score = 0;
+            break;
+        }
+
         std.log.debug("PhysicalDevice {d}: \"{s}\" [{s}] (score={d})", .{ i, device_properties.device_name, if (score > 0) "suitable" else "not suitable", score });
 
         if (best_device_score < score) {
@@ -112,6 +144,24 @@ vkb: vk.BaseWrapper,
 instance: vk.InstanceProxy,
 debug_messenger: vk.DebugUtilsMessengerEXT,
 surface: vk.SurfaceKHR,
+physical_device: vk.PhysicalDevice,
+physical_device_properties: vk.PhysicalDeviceProperties,
+device: vk.DeviceProxy,
+graphics_queue: Queue,
+present_queue: Queue,
+mem_props: vk.PhysicalDeviceMemoryProperties,
+
+const Queue = struct {
+    handle: vk.Queue,
+    family: u32,
+
+    fn init(device: vk.DeviceProxy, family: u32) Queue {
+        return .{
+            .handle = device.getDeviceQueue(family, 0),
+            .family = family,
+        };
+    }
+};
 
 pub const InitOptions = struct {
     allocator: std.mem.Allocator,
@@ -148,7 +198,7 @@ pub fn init(options: InitOptions) !Renderer {
 
     const vki = try options.allocator.create(vk.InstanceWrapper);
     errdefer options.allocator.destroy(vki);
-    vki.* = vk.InstanceWrapper.load(instance_handle, vkb.dispatch.vkGetInstanceProcAddr.?);
+    vki.* = .load(instance_handle, vkb.dispatch.vkGetInstanceProcAddr.?);
     const instance = vk.InstanceProxy.init(instance_handle, vki);
     errdefer instance.destroyInstance(null);
 
@@ -174,8 +224,32 @@ pub fn init(options: InitOptions) !Renderer {
     };
     errdefer instance.destroySurfaceKHR(surface, null);
 
-    const physical_device = try pickPhyisicalDevice(options.allocator, instance, surface);
-    _ = physical_device;
+    const picked_device = try pickPhyisicalDevice(options.allocator, instance, surface);
+    std.log.debug("Picked phyisical device \"{s}\"", .{picked_device.properties.device_name});
+
+    const device_handle = try instance.createDevice(picked_device.physical_device, &.{
+        .queue_create_info_count = picked_device.queues.count(),
+        .p_queue_create_infos = &[_]vk.DeviceQueueCreateInfo{
+            .{
+                .queue_family_index = picked_device.queues.graphics,
+                .queue_count = 1,
+                .p_queue_priorities = &.{1},
+            },
+            .{
+                .queue_family_index = picked_device.queues.present,
+                .queue_count = 1,
+                .p_queue_priorities = &.{1},
+            },
+        }, // TODO: Proper duplicate queue family index support
+        .enabled_extension_count = required_device_extensions.len,
+        .pp_enabled_extension_names = @ptrCast(&required_device_extensions),
+    }, null);
+
+    const vkd = try options.allocator.create(vk.DeviceWrapper);
+    errdefer options.allocator.destroy(vkd);
+    vkd.* = .load(device_handle, instance.wrapper.dispatch.vkGetDeviceProcAddr.?);
+    const device = vk.DeviceProxy.init(device_handle, vkd);
+    errdefer device.destroyDevice(null);
 
     return .{
         .allocator = options.allocator,
@@ -183,13 +257,21 @@ pub fn init(options: InitOptions) !Renderer {
         .instance = instance,
         .debug_messenger = debug_messenger,
         .surface = surface,
+        .physical_device = picked_device.physical_device,
+        .physical_device_properties = picked_device.properties,
+        .device = device,
+        .graphics_queue = .init(device, picked_device.queues.graphics),
+        .present_queue = .init(device, picked_device.queues.present),
+        .mem_props = instance.getPhysicalDeviceMemoryProperties(picked_device.physical_device),
     };
 }
 
 pub fn deinit(renderer: *Renderer) void {
+    renderer.device.destroyDevice(null);
     renderer.instance.destroySurfaceKHR(renderer.surface, null);
     renderer.instance.destroyDebugUtilsMessengerEXT(renderer.debug_messenger, null);
     renderer.instance.destroyInstance(null);
 
+    renderer.allocator.destroy(renderer.device.wrapper);
     renderer.allocator.destroy(renderer.instance.wrapper);
 }
