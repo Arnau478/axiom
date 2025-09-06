@@ -42,14 +42,38 @@ fn debugUtilsMessengerCallback(
     return .false;
 }
 
+const QueueFamilyIndices = struct {
+    graphics: u32,
+    present: u32,
+};
+
+fn findQueueFamilies(allocator: std.mem.Allocator, instance: vk.InstanceProxy, device: vk.PhysicalDevice, surface: vk.SurfaceKHR) !?QueueFamilyIndices {
+    const families = try instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(device, allocator);
+    defer allocator.free(families);
+
+    var graphics_family: ?u32 = null;
+    var present_family: ?u32 = null;
+
+    for (families, 0..) |properties, i| {
+        const family: u32 = @intCast(i);
+
+        if (graphics_family == null and properties.queue_flags.graphics_bit) graphics_family = family;
+        if (present_family == null and (try instance.getPhysicalDeviceSurfaceSupportKHR(device, family, surface)) == .true) present_family = family;
+    }
+
+    return .{
+        .graphics = graphics_family orelse return null,
+        .present = present_family orelse return null,
+    };
+}
+
 const PickedDevice = struct {
     physical_device: vk.PhysicalDevice,
     properties: vk.PhysicalDeviceProperties,
+    queues: QueueFamilyIndices,
 };
 
 fn pickPhyisicalDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxy, surface: vk.SurfaceKHR) !PickedDevice {
-    _ = surface;
-
     const devices = try instance.enumeratePhysicalDevicesAlloc(allocator);
     defer allocator.free(devices);
 
@@ -64,12 +88,17 @@ fn pickPhyisicalDevice(allocator: std.mem.Allocator, instance: vk.InstanceProxy,
         score += device_properties.limits.max_image_dimension_2d;
         if (device_properties.device_type == .discrete_gpu) score += 1000;
 
+        const queue_families = try findQueueFamilies(allocator, instance, device, surface);
+
+        if (queue_families == null) score = 0;
+
         std.log.debug("PhysicalDevice {d}: \"{s}\" [{s}] (score={d})", .{ i, device_properties.device_name, if (score > 0) "suitable" else "not suitable", score });
 
         if (best_device_score < score) {
             best_device = .{
                 .physical_device = device,
                 .properties = device_properties,
+                .queues = queue_families.?,
             };
             best_device_score = score;
         }
