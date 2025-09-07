@@ -42,6 +42,16 @@ pub fn build(b: *std.Build) void {
 
     vulkan_mod.addImport("vk", vulkan_dep.module("vulkan-zig"));
 
+    const vert_cmd = b.addSystemCommand(&.{ "glslc", "--target-env=vulkan1.2", "-o" });
+    const vert_spv = vert_cmd.addOutputFileArg("vert.spv");
+    vert_cmd.addFileArg(b.path("src/vulkan/shaders/shader.vert"));
+    vulkan_mod.addAnonymousImport("vert_spv", .{ .root_source_file = vert_spv });
+
+    const frag_cmd = b.addSystemCommand(&.{ "glslc", "--target-env=vulkan1.2", "-o" });
+    const frag_spv = frag_cmd.addOutputFileArg("frag.spv");
+    frag_cmd.addFileArg(b.path("src/vulkan/shaders/shader.frag"));
+    vulkan_mod.addAnonymousImport("frag_spv", .{ .root_source_file = frag_spv });
+
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
