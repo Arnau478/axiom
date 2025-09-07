@@ -13,6 +13,7 @@ allocator: std.mem.Allocator,
 gc: *GraphicsContext,
 swapchain: Swapchain,
 pipeline_layout: vk.PipelineLayout,
+render_pass: vk.RenderPass,
 
 pub const InitOptions = struct {
     allocator: std.mem.Allocator,
@@ -45,6 +46,8 @@ pub fn init(options: InitOptions) !Renderer {
     const pipeline_layout = try gc.device.createPipelineLayout(&.{}, null);
     errdefer gc.device.destroyPipelineLayout(pipeline_layout, null);
 
+    const render_pass = try createRenderPass(gc, swapchain);
+    errdefer gc.device.destroyRenderPass(render_pass, null);
     try createPipeline(gc);
 
     return .{
@@ -52,7 +55,39 @@ pub fn init(options: InitOptions) !Renderer {
         .gc = gc,
         .swapchain = swapchain,
         .pipeline_layout = pipeline_layout,
+        .render_pass = render_pass,
     };
+}
+
+fn createRenderPass(gc: *const GraphicsContext, swapchain: Swapchain) !vk.RenderPass {
+    const color_attachment: vk.AttachmentDescription = .{
+        .format = swapchain.surface_format.format,
+        .samples = .{ .@"1_bit" = true },
+        .load_op = .clear,
+        .store_op = .store,
+        .stencil_load_op = .dont_care,
+        .stencil_store_op = .dont_care,
+        .initial_layout = .undefined,
+        .final_layout = .present_src_khr,
+    };
+
+    const color_attachment_ref: vk.AttachmentReference = .{
+        .attachment = 0,
+        .layout = .color_attachment_optimal,
+    };
+
+    const subpass: vk.SubpassDescription = .{
+        .pipeline_bind_point = .graphics,
+        .color_attachment_count = 1,
+        .p_color_attachments = @ptrCast(&color_attachment_ref),
+    };
+
+    return try gc.device.createRenderPass(&.{
+        .attachment_count = 1,
+        .p_attachments = @ptrCast(&color_attachment),
+        .subpass_count = 1,
+        .p_subpasses = @ptrCast(&subpass),
+    }, null);
 }
 
 fn createShaderModule(gc: *const GraphicsContext, spv: []align(4) const u8) !vk.ShaderModule {
@@ -154,6 +189,7 @@ fn createPipeline(gc: *const GraphicsContext) !void {
 }
 
 pub fn deinit(renderer: Renderer) void {
+    renderer.gc.device.destroyRenderPass(renderer.render_pass, null);
     renderer.gc.device.destroyPipelineLayout(renderer.pipeline_layout, null);
     renderer.swapchain.deinit(renderer.allocator);
     renderer.gc.deinit();
