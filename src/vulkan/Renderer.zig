@@ -14,6 +14,7 @@ gc: *GraphicsContext,
 swapchain: Swapchain,
 pipeline_layout: vk.PipelineLayout,
 render_pass: vk.RenderPass,
+pipeline: vk.Pipeline,
 
 pub const InitOptions = struct {
     allocator: std.mem.Allocator,
@@ -48,7 +49,9 @@ pub fn init(options: InitOptions) !Renderer {
 
     const render_pass = try createRenderPass(gc, swapchain);
     errdefer gc.device.destroyRenderPass(render_pass, null);
-    try createPipeline(gc);
+
+    const pipeline = try createPipeline(gc, pipeline_layout, render_pass);
+    errdefer gc.device.destroyPipeline(pipeline, null);
 
     return .{
         .allocator = options.allocator,
@@ -56,7 +59,17 @@ pub fn init(options: InitOptions) !Renderer {
         .swapchain = swapchain,
         .pipeline_layout = pipeline_layout,
         .render_pass = render_pass,
+        .pipeline = pipeline,
     };
+}
+
+pub fn deinit(renderer: Renderer) void {
+    renderer.gc.device.destroyPipeline(renderer.pipeline, null);
+    renderer.gc.device.destroyRenderPass(renderer.render_pass, null);
+    renderer.gc.device.destroyPipelineLayout(renderer.pipeline_layout, null);
+    renderer.swapchain.deinit(renderer.allocator);
+    renderer.gc.deinit();
+    renderer.allocator.destroy(renderer.gc);
 }
 
 fn createRenderPass(gc: *const GraphicsContext, swapchain: Swapchain) !vk.RenderPass {
@@ -97,7 +110,7 @@ fn createShaderModule(gc: *const GraphicsContext, spv: []align(4) const u8) !vk.
     }, null);
 }
 
-fn createPipeline(gc: *const GraphicsContext) !void {
+fn createPipeline(gc: *const GraphicsContext, layout: vk.PipelineLayout, render_pass: vk.RenderPass) !vk.Pipeline {
     const vert_module = try createShaderModule(gc, &vert_spv);
     defer gc.device.destroyShaderModule(vert_module, null);
     const frag_module = try createShaderModule(gc, &frag_spv);
@@ -178,20 +191,25 @@ fn createPipeline(gc: *const GraphicsContext) !void {
         .blend_constants = .{ 0.0, 0.0, 0.0, 0.0 },
     };
 
-    _ = shader_stages_info;
-    _ = dynamic_info;
-    _ = vertex_input_info;
-    _ = input_assembly_info;
-    _ = viewport_info;
-    _ = rasterizer_info;
-    _ = multisampling_info;
-    _ = color_blend_info;
-}
+    var pipeline: vk.Pipeline = undefined;
+    _ = try gc.device.createGraphicsPipelines(.null_handle, 1, @ptrCast(&vk.GraphicsPipelineCreateInfo{
+        .stage_count = shader_stages_info.len,
+        .p_stages = &shader_stages_info,
+        .p_vertex_input_state = &vertex_input_info,
+        .p_input_assembly_state = &input_assembly_info,
+        .p_tessellation_state = null,
+        .p_viewport_state = &viewport_info,
+        .p_rasterization_state = &rasterizer_info,
+        .p_multisample_state = &multisampling_info,
+        .p_depth_stencil_state = null,
+        .p_color_blend_state = &color_blend_info,
+        .p_dynamic_state = &dynamic_info,
+        .layout = layout,
+        .render_pass = render_pass,
+        .subpass = 0,
+        .base_pipeline_handle = .null_handle,
+        .base_pipeline_index = -1,
+    }), null, @ptrCast(&pipeline));
 
-pub fn deinit(renderer: Renderer) void {
-    renderer.gc.device.destroyRenderPass(renderer.render_pass, null);
-    renderer.gc.device.destroyPipelineLayout(renderer.pipeline_layout, null);
-    renderer.swapchain.deinit(renderer.allocator);
-    renderer.gc.deinit();
-    renderer.allocator.destroy(renderer.gc);
+    return pipeline;
 }
