@@ -43,6 +43,8 @@ pub fn init(allocator: std.mem.Allocator) !Browser {
             .application_name = "axiom",
             .createWindowSurface = @extern(*const vulkan.CreateWindowSurfaceFunction, .{ .name = "glfwCreateWindowSurface" }),
             .create_window_surface_ctx = window,
+            .extent_width = window_width,
+            .extent_height = window_height,
         }),
         .tabs = .empty,
         .current_tab_index = 0,
