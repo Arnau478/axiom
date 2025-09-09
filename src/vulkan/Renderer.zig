@@ -15,6 +15,7 @@ swapchain: Swapchain,
 pipeline_layout: vk.PipelineLayout,
 render_pass: vk.RenderPass,
 pipeline: vk.Pipeline,
+framebuffers: []vk.Framebuffer,
 
 pub const InitOptions = struct {
     allocator: std.mem.Allocator,
@@ -53,6 +54,9 @@ pub fn init(options: InitOptions) !Renderer {
     const pipeline = try createPipeline(gc, pipeline_layout, render_pass);
     errdefer gc.device.destroyPipeline(pipeline, null);
 
+    const framebuffers = try createFramebuffers(gc, options.allocator, render_pass, swapchain);
+    errdefer options.allocator.free(framebuffers);
+
     return .{
         .allocator = options.allocator,
         .gc = gc,
@@ -60,10 +64,13 @@ pub fn init(options: InitOptions) !Renderer {
         .pipeline_layout = pipeline_layout,
         .render_pass = render_pass,
         .pipeline = pipeline,
+        .framebuffers = framebuffers,
     };
 }
 
 pub fn deinit(renderer: Renderer) void {
+    for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
+    renderer.allocator.free(renderer.framebuffers);
     renderer.gc.device.destroyPipeline(renderer.pipeline, null);
     renderer.gc.device.destroyRenderPass(renderer.render_pass, null);
     renderer.gc.device.destroyPipelineLayout(renderer.pipeline_layout, null);
@@ -212,4 +219,26 @@ fn createPipeline(gc: *const GraphicsContext, layout: vk.PipelineLayout, render_
     }), null, @ptrCast(&pipeline));
 
     return pipeline;
+}
+
+fn createFramebuffers(gc: *const GraphicsContext, allocator: std.mem.Allocator, render_pass: vk.RenderPass, swapchain: Swapchain) ![]vk.Framebuffer {
+    const framebuffers = try allocator.alloc(vk.Framebuffer, swapchain.swap_images.len);
+    errdefer allocator.free(framebuffers);
+
+    var i: usize = 0;
+    errdefer for (framebuffers[0..i]) |fb| gc.device.destroyFramebuffer(fb, null);
+
+    for (framebuffers) |*fb| {
+        fb.* = try gc.device.createFramebuffer(&.{
+            .render_pass = render_pass,
+            .attachment_count = 1,
+            .p_attachments = @ptrCast(&swapchain.swap_images[i].view),
+            .width = swapchain.extent.width,
+            .height = swapchain.extent.height,
+            .layers = 1,
+        }, null);
+        i += 1;
+    }
+
+    return framebuffers;
 }
