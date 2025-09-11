@@ -16,6 +16,8 @@ pipeline_layout: vk.PipelineLayout,
 render_pass: vk.RenderPass,
 pipeline: vk.Pipeline,
 framebuffers: []vk.Framebuffer,
+command_pool: vk.CommandPool,
+command_buffer: vk.CommandBuffer,
 
 pub const InitOptions = struct {
     allocator: std.mem.Allocator,
@@ -57,6 +59,16 @@ pub fn init(options: InitOptions) !Renderer {
     const framebuffers = try createFramebuffers(gc, options.allocator, render_pass, swapchain);
     errdefer options.allocator.free(framebuffers);
 
+    const command_pool = try createCommandPool(gc, gc.graphics_queue.family);
+    errdefer gc.device.destroyCommandPool(command_pool, null);
+
+    var command_buffer: vk.CommandBuffer = undefined;
+    try gc.device.allocateCommandBuffers(&.{
+        .command_pool = command_pool,
+        .level = .primary,
+        .command_buffer_count = 1,
+    }, @ptrCast(&command_buffer));
+
     return .{
         .allocator = options.allocator,
         .gc = gc,
@@ -65,10 +77,13 @@ pub fn init(options: InitOptions) !Renderer {
         .render_pass = render_pass,
         .pipeline = pipeline,
         .framebuffers = framebuffers,
+        .command_pool = command_pool,
+        .command_buffer = command_buffer,
     };
 }
 
 pub fn deinit(renderer: Renderer) void {
+    renderer.gc.device.destroyCommandPool(renderer.command_pool, null);
     for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
     renderer.allocator.free(renderer.framebuffers);
     renderer.gc.device.destroyPipeline(renderer.pipeline, null);
@@ -241,4 +256,11 @@ fn createFramebuffers(gc: *const GraphicsContext, allocator: std.mem.Allocator, 
     }
 
     return framebuffers;
+}
+
+fn createCommandPool(gc: *const GraphicsContext, queue_family_index: u32) !vk.CommandPool {
+    return try gc.device.createCommandPool(&.{
+        .flags = .{ .reset_command_buffer_bit = true },
+        .queue_family_index = queue_family_index,
+    }, null);
 }
