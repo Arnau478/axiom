@@ -264,3 +264,42 @@ fn createCommandPool(gc: *const GraphicsContext, queue_family_index: u32) !vk.Co
         .queue_family_index = queue_family_index,
     }, null);
 }
+
+fn recordCommandBuffer(renderer: *Renderer, command_buffer: vk.CommandBuffer, image_index: u32) !void {
+    try renderer.gc.device.beginCommandBuffer(command_buffer, &.{});
+
+    renderer.gc.device.cmdBeginRenderPass(command_buffer, &.{
+        .render_pass = renderer.render_pass,
+        .framebuffer = renderer.framebuffers[image_index],
+        .render_area = .{
+            .offset = .{ .x = 0, .y = 0 },
+            .extent = renderer.swapchain.extent,
+        },
+        .clear_value_count = 1,
+        .p_clear_values = @ptrCast(&vk.ClearValue{ .color = .{ .float_32 = .{ 0, 0, 0, 1 } } }),
+    }, .@"inline");
+
+    renderer.gc.device.cmdBindPipeline(command_buffer, .graphics, renderer.pipeline);
+
+    const viewport: vk.Viewport = .{
+        .x = 0,
+        .y = 0,
+        .width = @floatFromInt(renderer.swapchain.extent.width),
+        .height = @floatFromInt(renderer.swapchain.extent.height),
+        .min_depth = 0,
+        .max_depth = 1,
+    };
+
+    const scissor: vk.Rect2D = .{
+        .offset = .{ .x = 0, .y = 0 },
+        .extent = renderer.swapchain.extent,
+    };
+
+    renderer.gc.device.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
+    renderer.gc.device.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
+
+    renderer.gc.device.cmdDraw(command_buffer, 3, 1, 0, 0);
+
+    renderer.gc.device.cmdEndRenderPass(command_buffer);
+    try renderer.gc.device.endCommandBuffer(command_buffer);
+}
