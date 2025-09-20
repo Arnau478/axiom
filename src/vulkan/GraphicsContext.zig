@@ -278,3 +278,20 @@ pub fn deinit(gc: *const GraphicsContext) void {
     gc.allocator.destroy(gc.device.wrapper);
     gc.allocator.destroy(gc.instance.wrapper);
 }
+
+pub fn findMemoryTypeIndex(gc: *const GraphicsContext, memory_type_bits: u32, flags: vk.MemoryPropertyFlags) !u32 {
+    for (gc.mem_props.memory_types[0..gc.mem_props.memory_type_count], 0..) |mem_type, i| {
+        if (memory_type_bits & (@as(u32, 1) << @truncate(i)) != 0 and mem_type.property_flags.contains(flags)) {
+            return @truncate(i);
+        }
+    }
+
+    return error.NoSuitableMemoryType;
+}
+
+pub fn allocate(gc: *const GraphicsContext, requirements: vk.MemoryRequirements, flags: vk.MemoryPropertyFlags) !vk.DeviceMemory {
+    return try gc.device.allocateMemory(&.{
+        .allocation_size = requirements.size,
+        .memory_type_index = try gc.findMemoryTypeIndex(requirements.memory_type_bits, flags),
+    }, null);
+}
