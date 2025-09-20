@@ -1,6 +1,7 @@
 const Renderer = @This();
 
 const std = @import("std");
+const engine = @import("engine");
 const vk = @import("vk");
 const vulkan = @import("vulkan.zig");
 const GraphicsContext = @import("GraphicsContext.zig");
@@ -302,4 +303,12 @@ fn recordCommandBuffer(renderer: *Renderer, command_buffer: vk.CommandBuffer, im
 
     renderer.gc.device.cmdEndRenderPass(command_buffer);
     try renderer.gc.device.endCommandBuffer(command_buffer);
+}
+
+pub fn drawFrame(renderer: *Renderer, draw_list: []const engine.paint.Command) !void {
+    _ = draw_list;
+
+    try renderer.recordCommandBuffer(renderer.command_buffer, renderer.swapchain.image_index);
+
+    _ = try renderer.swapchain.present(renderer.command_buffer);
 }

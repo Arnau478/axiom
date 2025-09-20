@@ -40,6 +40,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    vulkan_mod.addImport("engine", engine_mod);
     vulkan_mod.addImport("vk", vulkan_dep.module("vulkan-zig"));
 
     const vert_cmd = b.addSystemCommand(&.{ "glslc", "--target-env=vulkan1.2", "-o" });
