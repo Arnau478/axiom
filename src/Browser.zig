@@ -22,16 +22,15 @@ tabs: std.ArrayList(Tab),
 current_tab_index: usize,
 
 // TODO: Proper window sizing
-const window_width = 500;
-const window_height = 400;
+const initial_window_width = 500;
+const initial_window_height = 400;
 
 pub fn init(allocator: std.mem.Allocator) !Browser {
     try glfw.init();
 
     glfw.WindowHint.set(.client_api, .no_api);
-    glfw.WindowHint.set(.resizable, false);
 
-    const window = try glfw.Window.create(window_width, window_height, "axiom", null);
+    const window = try glfw.Window.create(initial_window_width, initial_window_height, "axiom", null);
 
     var browser: Browser = .{
         .allocator = allocator,
@@ -43,8 +42,8 @@ pub fn init(allocator: std.mem.Allocator) !Browser {
             .application_name = "axiom",
             .createWindowSurface = @extern(*const vulkan.CreateWindowSurfaceFunction, .{ .name = "glfwCreateWindowSurface" }),
             .create_window_surface_ctx = window,
-            .window_width = window_width,
-            .window_height = window_height,
+            .window_width = initial_window_width,
+            .window_height = initial_window_height,
         }),
         .tabs = .empty,
         .current_tab_index = 0,
@@ -87,11 +86,12 @@ pub fn run(browser: *Browser) !void {
 
         if (browser.tabs.items.len == 0) break;
 
-        try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = window_width, .height = window_height } });
+        const size = browser.window.getFramebufferSize();
+        try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = @intCast(size[0]), .height = @intCast(size[1]) } });
 
         const draw_list = try browser.currentTab().view_process.recv(browser.allocator, .new_frame);
         defer browser.allocator.free(draw_list);
 
-        try browser.renderer.drawFrame(draw_list);
+        try browser.renderer.drawFrame(@intCast(size[0]), @intCast(size[1]), draw_list);
     }
 }

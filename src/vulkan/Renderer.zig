@@ -59,6 +59,7 @@ pub fn init(options: InitOptions) !Renderer {
 
     const framebuffers = try createFramebuffers(gc, options.allocator, render_pass, swapchain);
     errdefer options.allocator.free(framebuffers);
+    errdefer for (framebuffers) |fb| gc.device.destroyFramebuffer(fb, null);
 
     const command_pool = try createCommandPool(gc, gc.graphics_queue.family);
     errdefer gc.device.destroyCommandPool(command_pool, null);
@@ -305,8 +306,16 @@ fn recordCommandBuffer(renderer: *Renderer, command_buffer: vk.CommandBuffer, im
     try renderer.gc.device.endCommandBuffer(command_buffer);
 }
 
-pub fn drawFrame(renderer: *Renderer, draw_list: []const engine.paint.Command) !void {
+pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []const engine.paint.Command) !void {
     _ = draw_list;
+    if (renderer.swapchain.extent.width != width or renderer.swapchain.extent.height != height) {
+        try renderer.swapchain.recreate(renderer.allocator, .{ .width = @intCast(width), .height = @intCast(height) });
+
+        for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
+        renderer.allocator.free(renderer.framebuffers);
+
+        renderer.framebuffers = try createFramebuffers(renderer.gc, renderer.allocator, renderer.render_pass, renderer.swapchain);
+    }
 
     try renderer.recordCommandBuffer(renderer.command_buffer, renderer.swapchain.image_index);
 
