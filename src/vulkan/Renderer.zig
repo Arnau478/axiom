@@ -10,6 +10,32 @@ const Swapchain = @import("Swapchain.zig");
 const vert_spv align(4) = @embedFile("vert_spv").*;
 const frag_spv align(4) = @embedFile("frag_spv").*;
 
+const Vertex = struct {
+    const binding_description: vk.VertexInputBindingDescription = .{
+        .binding = 0,
+        .stride = @sizeOf(Vertex),
+        .input_rate = .vertex,
+    };
+
+    const attribute_description: [2]vk.VertexInputAttributeDescription = .{
+        .{
+            .binding = 0,
+            .location = 0,
+            .format = .r32g32_sfloat,
+            .offset = @offsetOf(Vertex, "pos"),
+        },
+        .{
+            .binding = 0,
+            .location = 1,
+            .format = .r32g32b32_sfloat,
+            .offset = @offsetOf(Vertex, "color"),
+        },
+    };
+
+    pos: [2]f32,
+    color: [3]f32,
+};
+
 allocator: std.mem.Allocator,
 gc: *GraphicsContext,
 swapchain: Swapchain,
@@ -18,6 +44,8 @@ render_pass: vk.RenderPass,
 pipeline: vk.Pipeline,
 framebuffers: []vk.Framebuffer,
 command_pool: vk.CommandPool,
+vertex_buffer: vk.Buffer,
+vertex_buffer_memory: vk.DeviceMemory,
 command_buffer: vk.CommandBuffer,
 
 pub const InitOptions = struct {
@@ -64,6 +92,17 @@ pub fn init(options: InitOptions) !Renderer {
     const command_pool = try createCommandPool(gc, gc.graphics_queue.family);
     errdefer gc.device.destroyCommandPool(command_pool, null);
 
+    const vertex_buffer = try gc.device.createBuffer(&.{
+        .size = @sizeOf(Vertex) * 3, // TODO: Should this be hardcoded?
+        .usage = .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
+        .sharing_mode = .exclusive,
+    }, null);
+    errdefer gc.device.destroyBuffer(vertex_buffer, null);
+    const vertex_buffer_memory_requirements = gc.device.getBufferMemoryRequirements(vertex_buffer);
+    const vertex_buffer_memory = try gc.allocate(vertex_buffer_memory_requirements, .{ .host_visible_bit = true, .host_coherent_bit = true });
+    errdefer gc.device.freeMemory(vertex_buffer_memory, null);
+    try gc.device.bindBufferMemory(vertex_buffer, vertex_buffer_memory, 0);
+
     var command_buffer: vk.CommandBuffer = undefined;
     try gc.device.allocateCommandBuffers(&.{
         .command_pool = command_pool,
@@ -80,11 +119,15 @@ pub fn init(options: InitOptions) !Renderer {
         .pipeline = pipeline,
         .framebuffers = framebuffers,
         .command_pool = command_pool,
+        .vertex_buffer = vertex_buffer,
+        .vertex_buffer_memory = vertex_buffer_memory,
         .command_buffer = command_buffer,
     };
 }
 
 pub fn deinit(renderer: Renderer) void {
+    renderer.gc.device.freeMemory(renderer.vertex_buffer_memory, null);
+    renderer.gc.device.destroyBuffer(renderer.vertex_buffer, null);
     renderer.gc.device.destroyCommandPool(renderer.command_pool, null);
     for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
     renderer.allocator.free(renderer.framebuffers);
@@ -161,8 +204,10 @@ fn createPipeline(gc: *const GraphicsContext, layout: vk.PipelineLayout, render_
     };
 
     const vertex_input_info: vk.PipelineVertexInputStateCreateInfo = .{
-        .vertex_binding_description_count = 0,
-        .vertex_attribute_description_count = 0,
+        .vertex_binding_description_count = 1,
+        .vertex_attribute_description_count = Vertex.attribute_description.len,
+        .p_vertex_binding_descriptions = @ptrCast(&Vertex.binding_description),
+        .p_vertex_attribute_descriptions = &Vertex.attribute_description,
     };
 
     const input_assembly_info: vk.PipelineInputAssemblyStateCreateInfo = .{
@@ -316,6 +361,20 @@ pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []
 
         renderer.framebuffers = try createFramebuffers(renderer.gc, renderer.allocator, renderer.render_pass, renderer.swapchain);
     }
+
+    {
+        const vertex_data = try renderer.gc.device.mapMemory(renderer.vertex_buffer_memory, 0, vk.WHOLE_SIZE, .{});
+        defer renderer.gc.device.unmapMemory(renderer.vertex_buffer_memory);
+
+        @memcpy(@as([*]Vertex, @ptrCast(@alignCast(vertex_data))), &[_]Vertex{
+            .{ .pos = .{ 0.0, -0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
+            .{ .pos = .{ 0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
+            .{ .pos = .{ -0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
+        });
+    }
+
+    renderer.gc.device.cmdBindPipeline(renderer.command_buffer, .graphics, renderer.pipeline);
+    renderer.gc.device.cmdBindVertexBuffers(renderer.command_buffer, 0, 1, &.{renderer.vertex_buffer}, &.{0});
 
     try renderer.recordCommandBuffer(renderer.command_buffer, renderer.swapchain.image_index);
 
