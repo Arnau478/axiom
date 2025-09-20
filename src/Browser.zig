@@ -82,7 +82,6 @@ fn currentTab(browser: *Browser) *Tab {
 }
 
 pub fn run(browser: *Browser) !void {
-    if (true) return;
     while (!browser.window.shouldClose()) {
         glfw.pollEvents();
 
@@ -92,5 +91,7 @@ pub fn run(browser: *Browser) !void {
 
         const draw_list = try browser.currentTab().view_process.recv(browser.allocator, .new_frame);
         defer browser.allocator.free(draw_list);
+
+        try browser.renderer.drawFrame(draw_list);
     }
 }
