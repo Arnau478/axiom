@@ -9,7 +9,6 @@ pub const Color = struct {
 };
 
 pub const Command = union(enum(u8)) {
-    clear: Color,
     simple_rect: SimpleRect,
 
     pub const SimpleRect = struct {

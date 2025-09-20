@@ -44,8 +44,6 @@ render_pass: vk.RenderPass,
 pipeline: vk.Pipeline,
 framebuffers: []vk.Framebuffer,
 command_pool: vk.CommandPool,
-vertex_buffer: vk.Buffer,
-vertex_buffer_memory: vk.DeviceMemory,
 command_buffer: vk.CommandBuffer,
 
 pub const InitOptions = struct {
@@ -92,17 +90,6 @@ pub fn init(options: InitOptions) !Renderer {
     const command_pool = try createCommandPool(gc, gc.graphics_queue.family);
     errdefer gc.device.destroyCommandPool(command_pool, null);
 
-    const vertex_buffer = try gc.device.createBuffer(&.{
-        .size = @sizeOf(Vertex) * 3, // TODO: Should this be hardcoded?
-        .usage = .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
-        .sharing_mode = .exclusive,
-    }, null);
-    errdefer gc.device.destroyBuffer(vertex_buffer, null);
-    const vertex_buffer_memory_requirements = gc.device.getBufferMemoryRequirements(vertex_buffer);
-    const vertex_buffer_memory = try gc.allocate(vertex_buffer_memory_requirements, .{ .host_visible_bit = true, .host_coherent_bit = true });
-    errdefer gc.device.freeMemory(vertex_buffer_memory, null);
-    try gc.device.bindBufferMemory(vertex_buffer, vertex_buffer_memory, 0);
-
     var command_buffer: vk.CommandBuffer = undefined;
     try gc.device.allocateCommandBuffers(&.{
         .command_pool = command_pool,
@@ -119,15 +106,11 @@ pub fn init(options: InitOptions) !Renderer {
         .pipeline = pipeline,
         .framebuffers = framebuffers,
         .command_pool = command_pool,
-        .vertex_buffer = vertex_buffer,
-        .vertex_buffer_memory = vertex_buffer_memory,
         .command_buffer = command_buffer,
     };
 }
 
 pub fn deinit(renderer: Renderer) void {
-    renderer.gc.device.freeMemory(renderer.vertex_buffer_memory, null);
-    renderer.gc.device.destroyBuffer(renderer.vertex_buffer, null);
     renderer.gc.device.destroyCommandPool(renderer.command_pool, null);
     for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
     renderer.allocator.free(renderer.framebuffers);
@@ -312,12 +295,33 @@ fn createCommandPool(gc: *const GraphicsContext, queue_family_index: u32) !vk.Co
     }, null);
 }
 
-fn recordCommandBuffer(renderer: *Renderer, command_buffer: vk.CommandBuffer, image_index: u32) !void {
-    try renderer.gc.device.beginCommandBuffer(command_buffer, &.{});
+pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []const engine.paint.Command) !void {
+    if (renderer.swapchain.extent.width != width or renderer.swapchain.extent.height != height) {
+        try renderer.swapchain.recreate(renderer.allocator, .{ .width = @intCast(width), .height = @intCast(height) });
 
-    renderer.gc.device.cmdBeginRenderPass(command_buffer, &.{
+        for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
+        renderer.allocator.free(renderer.framebuffers);
+
+        renderer.framebuffers = try createFramebuffers(renderer.gc, renderer.allocator, renderer.render_pass, renderer.swapchain);
+    }
+
+    const vertex_buffer_size_per_command = 6;
+    const vertex_buffer = try renderer.gc.device.createBuffer(&.{
+        .size = @sizeOf(Vertex) * draw_list.len * vertex_buffer_size_per_command, // TODO: Should this be hardcoded?
+        .usage = .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
+        .sharing_mode = .exclusive,
+    }, null);
+    defer renderer.gc.device.destroyBuffer(vertex_buffer, null);
+    const vertex_buffer_memory_requirements = renderer.gc.device.getBufferMemoryRequirements(vertex_buffer);
+    const vertex_buffer_memory = try renderer.gc.allocate(vertex_buffer_memory_requirements, .{ .host_visible_bit = true, .host_coherent_bit = true });
+    defer renderer.gc.device.freeMemory(vertex_buffer_memory, null);
+    try renderer.gc.device.bindBufferMemory(vertex_buffer, vertex_buffer_memory, 0);
+
+    try renderer.gc.device.beginCommandBuffer(renderer.command_buffer, &.{});
+
+    renderer.gc.device.cmdBeginRenderPass(renderer.command_buffer, &.{
         .render_pass = renderer.render_pass,
-        .framebuffer = renderer.framebuffers[image_index],
+        .framebuffer = renderer.framebuffers[renderer.swapchain.image_index],
         .render_area = .{
             .offset = .{ .x = 0, .y = 0 },
             .extent = renderer.swapchain.extent,
@@ -326,7 +330,7 @@ fn recordCommandBuffer(renderer: *Renderer, command_buffer: vk.CommandBuffer, im
         .p_clear_values = @ptrCast(&vk.ClearValue{ .color = .{ .float_32 = .{ 0, 0, 0, 1 } } }),
     }, .@"inline");
 
-    renderer.gc.device.cmdBindPipeline(command_buffer, .graphics, renderer.pipeline);
+    renderer.gc.device.cmdBindPipeline(renderer.command_buffer, .graphics, renderer.pipeline);
 
     const viewport: vk.Viewport = .{
         .x = 0,
@@ -342,41 +346,58 @@ fn recordCommandBuffer(renderer: *Renderer, command_buffer: vk.CommandBuffer, im
         .extent = renderer.swapchain.extent,
     };
 
-    renderer.gc.device.cmdSetViewport(command_buffer, 0, 1, @ptrCast(&viewport));
-    renderer.gc.device.cmdSetScissor(command_buffer, 0, 1, @ptrCast(&scissor));
+    renderer.gc.device.cmdSetViewport(renderer.command_buffer, 0, 1, @ptrCast(&viewport));
+    renderer.gc.device.cmdSetScissor(renderer.command_buffer, 0, 1, @ptrCast(&scissor));
 
-    renderer.gc.device.cmdDraw(command_buffer, 3, 1, 0, 0);
+    const vertex_data: [*]Vertex = @ptrCast(@alignCast(try renderer.gc.device.mapMemory(vertex_buffer_memory, 0, vk.WHOLE_SIZE, .{})));
+    defer renderer.gc.device.unmapMemory(vertex_buffer_memory);
 
-    renderer.gc.device.cmdEndRenderPass(command_buffer);
-    try renderer.gc.device.endCommandBuffer(command_buffer);
-}
+    var vertex_offset: u32 = 0;
 
-pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []const engine.paint.Command) !void {
-    _ = draw_list;
-    if (renderer.swapchain.extent.width != width or renderer.swapchain.extent.height != height) {
-        try renderer.swapchain.recreate(renderer.allocator, .{ .width = @intCast(width), .height = @intCast(height) });
+    for (draw_list) |draw_command| {
+        const vertices: []const Vertex = switch (draw_command) {
+            .simple_rect => |simple_rect| vertices: {
+                const color: [3]f32 = .{ @floatFromInt(simple_rect.color.r), @floatFromInt(simple_rect.color.g), @floatFromInt(simple_rect.color.b) };
+                break :vertices &.{
+                    .{ .pos = .{
+                        @as(f32, @floatFromInt(simple_rect.x)) / @as(f32, @floatFromInt(width)) * 2 - 1,
+                        @as(f32, @floatFromInt(simple_rect.y)) / @as(f32, @floatFromInt(height)) * 2 - 1,
+                    }, .color = color },
+                    .{ .pos = .{
+                        @as(f32, @floatFromInt(simple_rect.x + simple_rect.width)) / @as(f32, @floatFromInt(width)) * 2 - 1,
+                        @as(f32, @floatFromInt(simple_rect.y + simple_rect.height)) / @as(f32, @floatFromInt(height)) * 2 - 1,
+                    }, .color = color },
+                    .{ .pos = .{
+                        @as(f32, @floatFromInt(simple_rect.x)) / @as(f32, @floatFromInt(width)) * 2 - 1,
+                        @as(f32, @floatFromInt(simple_rect.y + simple_rect.height)) / @as(f32, @floatFromInt(height)) * 2 - 1,
+                    }, .color = color },
+                    .{ .pos = .{
+                        @as(f32, @floatFromInt(simple_rect.x)) / @as(f32, @floatFromInt(width)) * 2 - 1,
+                        @as(f32, @floatFromInt(simple_rect.y)) / @as(f32, @floatFromInt(height)) * 2 - 1,
+                    }, .color = color },
+                    .{ .pos = .{
+                        @as(f32, @floatFromInt(simple_rect.x + simple_rect.width)) / @as(f32, @floatFromInt(width)) * 2 - 1,
+                        @as(f32, @floatFromInt(simple_rect.y)) / @as(f32, @floatFromInt(height)) * 2 - 1,
+                    }, .color = color },
+                    .{ .pos = .{
+                        @as(f32, @floatFromInt(simple_rect.x + simple_rect.width)) / @as(f32, @floatFromInt(width)) * 2 - 1,
+                        @as(f32, @floatFromInt(simple_rect.y + simple_rect.height)) / @as(f32, @floatFromInt(height)) * 2 - 1,
+                    }, .color = color },
+                };
+            },
+        };
 
-        for (renderer.framebuffers) |fb| renderer.gc.device.destroyFramebuffer(fb, null);
-        renderer.allocator.free(renderer.framebuffers);
+        renderer.gc.device.cmdBindPipeline(renderer.command_buffer, .graphics, renderer.pipeline);
+        renderer.gc.device.cmdBindVertexBuffers(renderer.command_buffer, 0, 1, &.{vertex_buffer}, &.{0});
 
-        renderer.framebuffers = try createFramebuffers(renderer.gc, renderer.allocator, renderer.render_pass, renderer.swapchain);
+        @memcpy(vertex_data[vertex_offset..][0..vertices.len], vertices);
+        renderer.gc.device.cmdDraw(renderer.command_buffer, @intCast(vertices.len), 1, vertex_offset, 0);
+        vertex_offset += @intCast(vertices.len);
+        std.debug.assert(vertices.len <= vertex_buffer_size_per_command);
     }
 
-    {
-        const vertex_data = try renderer.gc.device.mapMemory(renderer.vertex_buffer_memory, 0, vk.WHOLE_SIZE, .{});
-        defer renderer.gc.device.unmapMemory(renderer.vertex_buffer_memory);
-
-        @memcpy(@as([*]Vertex, @ptrCast(@alignCast(vertex_data))), &[_]Vertex{
-            .{ .pos = .{ 0.0, -0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
-            .{ .pos = .{ 0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
-            .{ .pos = .{ -0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
-        });
-    }
-
-    renderer.gc.device.cmdBindPipeline(renderer.command_buffer, .graphics, renderer.pipeline);
-    renderer.gc.device.cmdBindVertexBuffers(renderer.command_buffer, 0, 1, &.{renderer.vertex_buffer}, &.{0});
-
-    try renderer.recordCommandBuffer(renderer.command_buffer, renderer.swapchain.image_index);
+    renderer.gc.device.cmdEndRenderPass(renderer.command_buffer);
+    try renderer.gc.device.endCommandBuffer(renderer.command_buffer);
 
     _ = try renderer.swapchain.present(renderer.command_buffer);
 }
