@@ -161,7 +161,7 @@ pub fn recreate(swapchain: *Swapchain, allocator: std.mem.Allocator, new_extent:
     swapchain.deinitExceptSwapchain(allocator);
 
     swapchain.handle = .null_handle;
-    swapchain.* = .initRecycle(allocator, gc, new_extent, old_handle) catch |err| switch (err) {
+    swapchain.* = Swapchain.initRecycle(allocator, gc, new_extent, old_handle) catch |err| switch (err) {
         error.SwapchainCreationFailed => {
             gc.device.destroySwapchainKHR(old_handle, null);
             return err;
