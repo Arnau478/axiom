@@ -36,7 +36,7 @@ pub fn write(comptime T: type, value: T, writer: *std.Io.Writer) !void {
 }
 
 pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: *std.Io.Reader) !T {
-    return switch (T) {
+    const res: T = switch (T) {
         void => {},
         else => switch (@typeInfo(T)) {
             .pointer => |p| switch (p.size) {
@@ -71,4 +71,38 @@ pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: *std.Io.Read
             else => @compileError("Cannot serialize " ++ @typeName(T)),
         },
     };
+
+    return res;
+}
+
+pub fn free(allocator: std.mem.Allocator, value: anytype) void {
+    switch (@TypeOf(value)) {
+        void => {},
+        else => switch (@typeInfo(@TypeOf(value))) {
+            .pointer => |p| switch (p.size) {
+                .slice => {
+                    for (value) |element| {
+                        free(allocator, element);
+                    }
+                    allocator.free(value);
+                },
+                else => @compileError("Cannot serialize " ++ @typeName(@TypeOf(value))),
+            },
+            .int => {},
+            .@"struct" => |s| {
+                inline for (s.fields) |field| {
+                    free(allocator, @field(value, field.name));
+                }
+            },
+            .@"union" => {
+                switch (value) {
+                    inline else => |u| {
+                        free(allocator, u);
+                    },
+                }
+            },
+            .@"enum" => {},
+            else => @compileError("Cannot serialize " ++ @typeName(@TypeOf(value))),
+        },
+    }
 }

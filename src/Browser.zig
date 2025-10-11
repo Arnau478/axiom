@@ -4,6 +4,7 @@ const std = @import("std");
 const glfw = @import("glfw");
 const engine = @import("engine");
 const vulkan = @import("vulkan");
+const serialize = @import("serialize.zig");
 
 pub const ViewChildProcess = @import("Browser/ViewChildProcess.zig");
 
@@ -90,7 +91,7 @@ pub fn run(browser: *Browser) !void {
         try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = @intCast(size[0]), .height = @intCast(size[1]) } });
 
         const draw_list = try browser.currentTab().view_process.recv(browser.allocator, .new_frame);
-        defer browser.allocator.free(draw_list);
+        defer serialize.free(browser.allocator, draw_list);
 
         try browser.renderer.drawFrame(@intCast(size[0]), @intCast(size[1]), draw_list);
     }
