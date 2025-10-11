@@ -33,10 +33,6 @@ pub fn run(view_process: *ViewProcess) !void {
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
-    var stderr_buffer: [1024]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
-    const stderr = &stderr_writer.interface;
-
     const user_agent_stylesheet = try engine.style.css.parseStylesheet(view_process.allocator, @embedFile("ua.css"));
     defer user_agent_stylesheet.deinit(view_process.allocator);
 
@@ -44,20 +40,8 @@ pub fn run(view_process: *ViewProcess) !void {
     const font = try engine.Font.parse(view_process.allocator, &font_reader);
     defer font.deinit(view_process.allocator);
 
-    const text_buf = try font.rasterizeCharacter(view_process.allocator, 'à', 64);
+    const text_buf = try font.rasterizeCharacter(view_process.allocator, 'k', 128);
     defer text_buf.deinit(view_process.allocator);
-
-    for (0..text_buf.height) |y| {
-        for (0..text_buf.width) |x| {
-            try stderr.writeByte(switch (text_buf.at(x, y).*) {
-                0 => '.',
-                1...254 => '~',
-                255 => '#',
-            });
-        }
-        try stderr.writeByte('\n');
-    }
-    try stderr.flush();
 
     while (true) {
         const syn_byte = try stdin.takeByte();
@@ -110,13 +94,30 @@ pub fn run(view_process: *ViewProcess) !void {
             const draw_list = try engine.paint.paint(view_process.allocator, box_tree);
             defer view_process.allocator.free(draw_list);
 
+            const extended_draw_list = try std.mem.concat(view_process.allocator, engine.paint.Command, &.{ draw_list, &.{
+                .{
+                    .textured_rect = .{
+                        .x = 10,
+                        .y = 10,
+                        .width = text_buf.width,
+                        .height = text_buf.height,
+                        .texture_data = text_buf.data,
+                        .texture_width = text_buf.width,
+                        .texture_height = text_buf.height,
+                        .color = .{ .r = 255, .g = 255, .b = 255 },
+                        .single_channel = true,
+                    },
+                },
+            } });
+            defer view_process.allocator.free(extended_draw_list);
+
             const update_end_time = std.time.milliTimestamp();
             const update_time = update_end_time - update_start_time;
 
             std.log.debug("Update time: {d}ms", .{update_time});
 
             try stdout.writeByte(0x06);
-            try serialize.write(ipc.Response, .{ .new_frame = draw_list }, stdout);
+            try serialize.write(ipc.Response, .{ .new_frame = extended_draw_list }, stdout);
             try stdout.flush();
         }
     }

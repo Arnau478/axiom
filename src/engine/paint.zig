@@ -28,6 +28,8 @@ pub const Command = union(enum(u8)) {
         texture_data: []const u8,
         texture_width: usize,
         texture_height: usize,
+        color: Color,
+        single_channel: bool,
     };
 };
 
@@ -36,23 +38,6 @@ pub fn paint(allocator: std.mem.Allocator, box: *const layout.Box) ![]const Comm
     defer commands.deinit(allocator);
 
     try paintBox(allocator, box, &commands);
-
-    try commands.append(allocator, .{
-        .textured_rect = .{
-            .x = 10,
-            .y = 10,
-            .width = 100,
-            .height = 100,
-            .texture_data = &.{
-                0xff, 0xff, 0xff, 0xff,
-                0x00, 0x00, 0x00, 0xff,
-                0x00, 0x00, 0x00, 0xff,
-                0xff, 0xff, 0xff, 0xff,
-            },
-            .texture_width = 2,
-            .texture_height = 2,
-        },
-    });
 
     return try commands.toOwnedSlice(allocator);
 }

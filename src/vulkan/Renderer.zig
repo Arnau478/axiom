@@ -414,6 +414,7 @@ fn createTextureFromData(
     texture_data: []const u8,
     width: u32,
     height: u32,
+    single_channel: bool,
 ) !TextureResources {
     const staging_buffer = try gc.device.createBuffer(&.{
         .size = texture_data.len,
@@ -434,7 +435,7 @@ fn createTextureFromData(
 
     const image = try gc.device.createImage(&.{
         .image_type = .@"2d",
-        .format = .r8g8b8a8_srgb,
+        .format = if (single_channel) .r8_unorm else .r8g8b8a8_srgb,
         .extent = .{ .width = width, .height = height, .depth = 1 },
         .mip_levels = 1,
         .array_layers = 1,
@@ -541,8 +542,8 @@ fn createTextureFromData(
     const view = try gc.device.createImageView(&.{
         .image = image,
         .view_type = .@"2d",
-        .format = .r8g8b8a8_srgb,
-        .components = .{ .r = .identity, .g = .identity, .b = .identity, .a = .identity },
+        .format = if (single_channel) .r8_unorm else .r8g8b8a8_srgb,
+        .components = if (single_channel) .{ .r = .one, .g = .one, .b = .one, .a = .r } else .{ .r = .identity, .g = .identity, .b = .identity, .a = .identity },
         .subresource_range = .{
             .aspect_mask = .{ .color_bit = true },
             .base_mip_level = 0,
@@ -702,10 +703,11 @@ pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []
                     textured_rect.texture_data,
                     @intCast(textured_rect.texture_width),
                     @intCast(textured_rect.texture_height),
+                    textured_rect.single_channel,
                 );
                 try texture_list.append(renderer.allocator, texture);
 
-                const color: [3]f32 = .{ 1, 1, 1 };
+                const color: [3]f32 = .{ @floatFromInt(textured_rect.color.r), @floatFromInt(textured_rect.color.g), @floatFromInt(textured_rect.color.b) };
                 break :vertices &.{
                     .{ .pos = .{
                         @as(f32, @floatFromInt(textured_rect.x)) / @as(f32, @floatFromInt(width)) * 2 - 1,

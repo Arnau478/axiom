@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn write(comptime T: type, value: T, writer: *std.Io.Writer) !void {
     switch (T) {
         void => {},
+        bool => try write(u8, @intFromBool(value), writer),
         else => switch (@typeInfo(T)) {
             .pointer => |p| switch (p.size) {
                 .slice => {
@@ -38,6 +39,7 @@ pub fn write(comptime T: type, value: T, writer: *std.Io.Writer) !void {
 pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: *std.Io.Reader) !T {
     const res: T = switch (T) {
         void => {},
+        bool => try read(u8, allocator, reader) != 0,
         else => switch (@typeInfo(T)) {
             .pointer => |p| switch (p.size) {
                 .slice => value: {
@@ -78,6 +80,7 @@ pub fn read(comptime T: type, allocator: std.mem.Allocator, reader: *std.Io.Read
 pub fn free(allocator: std.mem.Allocator, value: anytype) void {
     switch (@TypeOf(value)) {
         void => {},
+        bool => {},
         else => switch (@typeInfo(@TypeOf(value))) {
             .pointer => |p| switch (p.size) {
                 .slice => {
