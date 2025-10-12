@@ -5,6 +5,7 @@ const Buffer = @import("Buffer.zig");
 
 contours: []const Contour,
 bounding_box: BoundingBox,
+advance_width: f32,
 
 pub const Point = struct {
     x: f32,

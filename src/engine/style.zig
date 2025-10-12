@@ -31,90 +31,106 @@ pub fn style(allocator: std.mem.Allocator, dom: Dom, document_id: Dom.DocumentId
         try stylesheets.append(allocator, try css.parseStylesheet(allocator, source));
     }
 
-    const root_style_node = try styleElement(allocator, &nodes, &computed_styles, dom, root_element_id, stylesheets.items, null);
+    const root_style_node = try styleNode(allocator, &nodes, &computed_styles, dom, .{ .element = root_element_id }, stylesheets.items, null);
 
     return .{
         .allocator = allocator,
         .nodes = try nodes.toOwnedSlice(allocator),
         .computed_styles = try computed_styles.toOwnedSlice(allocator),
-        .root = root_style_node,
+        .root = root_style_node.?,
     };
 }
 
-fn styleElement(
+fn styleNode(
     allocator: std.mem.Allocator,
     nodes: *std.ArrayList(StyleTree.Node),
     computed_styles: *std.ArrayList(ComputedStyle),
     dom: Dom,
-    element_id: Dom.ElementId,
+    dom_node: Dom.ContentNode,
     stylesheets: []const Stylesheet,
     parent_computed_style: ?ComputedStyle,
-) !StyleTree.NodeId {
-    const raw_children = try allocator.alloc(StyleTree.NodeId, dom.getElement(element_id).?.children.items.len);
-    errdefer allocator.free(raw_children);
-    var children = raw_children;
+) !?StyleTree.NodeId {
+    switch (dom_node) {
+        .element => |element_id| {
+            const raw_children = try allocator.alloc(StyleTree.NodeId, dom.getElement(element_id).?.children.items.len);
+            errdefer allocator.free(raw_children);
+            var children = raw_children;
 
-    var computed_style = if (parent_computed_style) |parent| ComputedStyle.inheritedOrInitial(parent) else ComputedStyle.initial;
+            var computed_style = if (parent_computed_style) |parent| ComputedStyle.inheritedOrInitial(parent) else ComputedStyle.initial;
 
-    for (stylesheets) |stylesheet| {
-        var rules: std.ArrayList(Stylesheet.Rule.Style) = .empty;
-        defer rules.deinit(allocator);
+            for (stylesheets) |stylesheet| {
+                var rules: std.ArrayList(Stylesheet.Rule.Style) = .empty;
+                defer rules.deinit(allocator);
 
-        for (stylesheet.rules) |rule| {
-            switch (rule) {
-                .style => |r| {
-                    if (r.matches(dom, element_id)) {
-                        try rules.append(allocator, r);
+                for (stylesheet.rules) |rule| {
+                    switch (rule) {
+                        .style => |r| {
+                            if (r.matches(dom, element_id)) {
+                                try rules.append(allocator, r);
+                            }
+                        },
                     }
-                },
+                }
+
+                std.mem.sort(Stylesheet.Rule.Style, rules.items, {}, struct {
+                    fn f(_: void, lhs: Stylesheet.Rule.Style, rhs: Stylesheet.Rule.Style) bool {
+                        return lhs.specificity().order(rhs.specificity()) == .lt;
+                    }
+                }.f);
+
+                for (rules.items) |rule| {
+                    for (rule.declarations) |declaration| {
+                        computed_style.applyDeclaration(declaration);
+                    }
+                }
             }
-        }
 
-        std.mem.sort(Stylesheet.Rule.Style, rules.items, {}, struct {
-            fn f(_: void, lhs: Stylesheet.Rule.Style, rhs: Stylesheet.Rule.Style) bool {
-                return lhs.specificity().order(rhs.specificity()) == .lt;
+            if (dom.getElementAttribute(element_id, "style")) |inline_css| {
+                const declarations = try css.parseDeclarationList(allocator, inline_css);
+                defer allocator.free(declarations);
+
+                for (declarations) |declaration| {
+                    computed_style.applyDeclaration(declaration);
+                }
             }
-        }.f);
 
-        for (rules.items) |rule| {
-            for (rule.declarations) |declaration| {
-                computed_style.applyDeclaration(declaration);
+            computed_style.flush();
+
+            try computed_styles.append(allocator, computed_style);
+
+            const computed_style_id: StyleTree.ComputedStyleId = @enumFromInt(computed_styles.items.len - 1);
+
+            var child_idx: usize = 0;
+            for (dom.getElement(element_id).?.children.items) |dom_child| {
+                if (try styleNode(allocator, nodes, computed_styles, dom, dom_child, stylesheets, computed_style)) |child| {
+                    children[child_idx] = child;
+                    child_idx += 1;
+                }
             }
-        }
+            children = try allocator.realloc(children, child_idx);
+
+            try nodes.append(allocator, .{
+                .dom_node = dom_node,
+                .children = children,
+                .computed_style = computed_style_id,
+            });
+
+            return @enumFromInt(nodes.items.len - 1);
+        },
+        .text => {
+            const computed_style: ComputedStyle = .inheritedOrInitial(parent_computed_style.?);
+
+            try computed_styles.append(allocator, computed_style);
+
+            const computed_style_id: StyleTree.ComputedStyleId = @enumFromInt(computed_styles.items.len - 1);
+
+            try nodes.append(allocator, .{
+                .dom_node = dom_node,
+                .computed_style = computed_style_id,
+            });
+
+            return @enumFromInt(nodes.items.len - 1);
+        },
+        .comment => return null,
     }
-
-    if (dom.getElementAttribute(element_id, "style")) |inline_css| {
-        const declarations = try css.parseDeclarationList(allocator, inline_css);
-        defer allocator.free(declarations);
-
-        for (declarations) |declaration| {
-            computed_style.applyDeclaration(declaration);
-        }
-    }
-
-    computed_style.flush();
-
-    try computed_styles.append(allocator, computed_style);
-
-    const computed_style_id: StyleTree.ComputedStyleId = @enumFromInt(computed_styles.items.len - 1);
-
-    var child_idx: usize = 0;
-    for (dom.getElement(element_id).?.children.items) |dom_child| {
-        switch (dom_child) {
-            .element => {
-                children[child_idx] = try styleElement(allocator, nodes, computed_styles, dom, dom_child.element, stylesheets, computed_style);
-                child_idx += 1;
-            },
-            .text, .comment => {},
-        }
-    }
-    children = try allocator.realloc(children, child_idx);
-
-    try nodes.append(allocator, .{
-        .element = element_id,
-        .children = children,
-        .computed_style = computed_style_id,
-    });
-
-    return @enumFromInt(nodes.items.len - 1);
 }

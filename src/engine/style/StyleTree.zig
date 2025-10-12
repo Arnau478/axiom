@@ -8,7 +8,7 @@ pub const NodeId = enum(usize) { _ };
 pub const ComputedStyleId = enum(usize) { _ };
 
 pub const Node = struct {
-    element: Dom.ElementId,
+    dom_node: Dom.ContentNode,
     computed_style: ComputedStyleId,
     children: []const NodeId = &.{},
 

@@ -33,15 +33,16 @@ pub fn run(view_process: *ViewProcess) !void {
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    const stderr = &stderr_writer.interface;
+
     const user_agent_stylesheet = try engine.style.css.parseStylesheet(view_process.allocator, @embedFile("ua.css"));
     defer user_agent_stylesheet.deinit(view_process.allocator);
 
     var font_reader: std.Io.Reader = .fixed(@embedFile("default_font"));
     const font = try engine.Font.parse(view_process.allocator, &font_reader);
     defer font.deinit(view_process.allocator);
-
-    const text_buf = try font.rasterizeCharacter(view_process.allocator, 'k', 128);
-    defer text_buf.deinit(view_process.allocator);
 
     while (true) {
         const syn_byte = try stdin.takeByte();
@@ -83,8 +84,10 @@ pub fn run(view_process: *ViewProcess) !void {
             const style_tree = try engine.style.style(view_process.allocator, dom, document, user_agent_stylesheet);
             defer style_tree.deinit();
 
-            var box_tree = try engine.layout.generateBox(view_process.allocator, style_tree, style_tree.root);
+            var box_tree = try engine.layout.generateBox(view_process.allocator, dom, style_tree, style_tree.root, font);
             defer box_tree.deinit(view_process.allocator);
+
+            try box_tree.printTree(dom, stderr);
 
             engine.layout.reflow(box_tree, .{
                 .width = @floatFromInt(view_process.viewport_width),
@@ -94,30 +97,13 @@ pub fn run(view_process: *ViewProcess) !void {
             const draw_list = try engine.paint.paint(view_process.allocator, box_tree);
             defer view_process.allocator.free(draw_list);
 
-            const extended_draw_list = try std.mem.concat(view_process.allocator, engine.paint.Command, &.{ draw_list, &.{
-                .{
-                    .textured_rect = .{
-                        .x = 10,
-                        .y = 10,
-                        .width = text_buf.width,
-                        .height = text_buf.height,
-                        .texture_data = text_buf.data,
-                        .texture_width = text_buf.width,
-                        .texture_height = text_buf.height,
-                        .color = .{ .r = 255, .g = 255, .b = 255 },
-                        .single_channel = true,
-                    },
-                },
-            } });
-            defer view_process.allocator.free(extended_draw_list);
-
             const update_end_time = std.time.milliTimestamp();
             const update_time = update_end_time - update_start_time;
 
             std.log.debug("Update time: {d}ms", .{update_time});
 
             try stdout.writeByte(0x06);
-            try serialize.write(ipc.Response, .{ .new_frame = extended_draw_list }, stdout);
+            try serialize.write(ipc.Response, .{ .new_frame = draw_list }, stdout);
             try stdout.flush();
         }
     }

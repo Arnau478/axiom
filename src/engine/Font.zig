@@ -26,19 +26,3 @@ pub fn getGlyph(font: Font, allocator: std.mem.Allocator, char: u21) !?Glyph {
         inline else => |f| f.getGlyph(allocator, char),
     };
 }
-
-pub fn rasterizeCharacter(font: Font, allocator: std.mem.Allocator, char: u21, size: usize) !Buffer {
-    const glyph = (try font.getGlyph(allocator, char)).?;
-    defer glyph.deinit(allocator);
-
-    const buffer = try Buffer.init(
-        allocator,
-        @intFromFloat(glyph.bounding_box.width * @as(f32, @floatFromInt(size))),
-        @intFromFloat(glyph.bounding_box.height * @as(f32, @floatFromInt(size))),
-    );
-    errdefer buffer.deinit(allocator);
-
-    glyph.rasterize(buffer, size);
-
-    return buffer;
-}

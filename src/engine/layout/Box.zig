@@ -4,6 +4,8 @@ const std = @import("std");
 const Dom = @import("../Dom.zig");
 const style = @import("../style.zig");
 const layout = @import("../layout.zig");
+const Font = @import("../Font.zig");
+const Point = @import("Point.zig");
 const Size = @import("Size.zig");
 const Rect = @import("Rect.zig");
 const BoxModel = @import("BoxModel.zig");
@@ -11,10 +13,22 @@ const BoxModel = @import("BoxModel.zig");
 children: std.ArrayList(*Box),
 parent: ?*Box,
 computed_style: style.ComputedStyle,
-element: ?Dom.ElementId,
+dom_node: ?Dom.ContentNode,
 box_model: BoxModel,
+text: std.ArrayList(TextComponent),
 
-pub fn init(allocator: std.mem.Allocator, computed_style: style.ComputedStyle, element: ?Dom.ElementId) !*Box {
+pub const TextComponent = struct {
+    component_offset: Point = .zero,
+    glyph_offset: Point,
+    buffer: Font.Buffer,
+    advance_width: f32,
+
+    pub fn bufferOffset(component: TextComponent) Point {
+        return component.component_offset.add(component.glyph_offset);
+    }
+};
+
+pub fn init(allocator: std.mem.Allocator, computed_style: style.ComputedStyle, dom_node: ?Dom.ContentNode) !*Box {
     const box = try allocator.create(Box);
     errdefer allocator.destroy(box);
 
@@ -22,7 +36,7 @@ pub fn init(allocator: std.mem.Allocator, computed_style: style.ComputedStyle, e
         .children = .empty,
         .parent = null,
         .computed_style = computed_style,
-        .element = element,
+        .dom_node = dom_node,
         .box_model = .{
             .content_box = .{
                 .origin = .zero,
@@ -32,6 +46,7 @@ pub fn init(allocator: std.mem.Allocator, computed_style: style.ComputedStyle, e
             .border = .zero,
             .margin = .zero,
         },
+        .text = .empty,
     };
 
     return box;
@@ -230,9 +245,17 @@ pub fn printTree(box: *const Box, dom: Dom, writer: *std.Io.Writer) !void {
 fn printTreeWithDepth(box: *const Box, dom: Dom, writer: *std.Io.Writer, depth: usize) !void {
     for (0..depth) |_| try writer.writeAll("  ");
 
-    if (box.element) |element_id| {
-        const element = dom.getElement(element_id).?;
-        try writer.print("<{s}>", .{element.tag_name});
+    if (box.dom_node) |dom_node| {
+        switch (dom_node) {
+            .element => |element_id| {
+                const element = dom.getElement(element_id).?;
+                try writer.print("<{s}>", .{element.tag_name});
+            },
+            .text => {
+                try writer.writeAll("[text]");
+            },
+            .comment => unreachable,
+        }
     } else {
         try writer.writeAll("(anon)");
     }

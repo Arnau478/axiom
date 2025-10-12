@@ -10,12 +10,16 @@ cmap: ?[]const u8 = null,
 glyf: ?[]const u8 = null,
 head: ?[]const u8 = null,
 loca: ?[]const u8 = null,
+hhea: ?[]const u8 = null,
+hmtx: ?[]const u8 = null,
 
 const TableDirectory = struct {
     cmap: ?Entry = null,
     glyf: ?Entry = null,
     head: ?Entry = null,
     loca: ?Entry = null,
+    hhea: ?Entry = null,
+    hmtx: ?Entry = null,
 
     const Entry = struct {
         checksum: u32,
@@ -68,6 +72,8 @@ pub fn parse(allocator: std.mem.Allocator, reader: *std.Io.Reader) !Ttf {
             @as(u32, @bitCast(@as([4]u8, "glyf".*))) => table_directory.glyf = entry,
             @as(u32, @bitCast(@as([4]u8, "head".*))) => table_directory.head = entry,
             @as(u32, @bitCast(@as([4]u8, "loca".*))) => table_directory.loca = entry,
+            @as(u32, @bitCast(@as([4]u8, "hhea".*))) => table_directory.hhea = entry,
+            @as(u32, @bitCast(@as([4]u8, "hmtx".*))) => table_directory.hmtx = entry,
             else => {
                 log.debug("Unknown table tag '{s}'", .{@as([4]u8, @bitCast(tag))});
             },
@@ -78,6 +84,8 @@ pub fn parse(allocator: std.mem.Allocator, reader: *std.Io.Reader) !Ttf {
     if (table_directory.glyf == null) return error.InvalidTtf;
     if (table_directory.head == null) return error.InvalidTtf;
     if (table_directory.loca == null) return error.InvalidTtf;
+    if (table_directory.hhea == null) return error.InvalidTtf;
+    if (table_directory.hmtx == null) return error.InvalidTtf;
 
     var ttf: Ttf = .{};
     errdefer ttf.deinit(allocator);
@@ -113,6 +121,8 @@ pub fn parse(allocator: std.mem.Allocator, reader: *std.Io.Reader) !Ttf {
     if (ttf.glyf == null) return error.InvalidTtf;
     if (ttf.head == null) return error.InvalidTtf;
     if (ttf.loca == null) return error.InvalidTtf;
+    if (ttf.hhea == null) return error.InvalidTtf;
+    if (ttf.hmtx == null) return error.InvalidTtf;
 
     if (ttf.header() == null) return error.InvalidTtf;
 
@@ -135,6 +145,7 @@ pub fn deinit(ttf: Ttf, allocator: std.mem.Allocator) void {
     if (ttf.glyf) |glyf| allocator.free(glyf);
     if (ttf.head) |head| allocator.free(head);
     if (ttf.loca) |loca| allocator.free(loca);
+    if (ttf.hmtx) |hmtx| allocator.free(hmtx);
 }
 
 pub fn header(ttf: Ttf) ?Header {
@@ -215,7 +226,20 @@ fn glyphOffsetFromIndex(ttf: Ttf, index: usize) u32 {
     }
 }
 
-fn getGlyphFromOffset(ttf: Ttf, allocator: std.mem.Allocator, glyph_offset: u32) !?Glyph {
+fn getAdvanceWidth(ttf: Ttf, glyph_index: u32) ?u16 {
+    if (ttf.hhea.?.len < 36) return null;
+    const num_of_long_hor_metrics = std.mem.readInt(u16, ttf.hhea.?[34..][0..2], .big);
+
+    if (glyph_index >= num_of_long_hor_metrics) {
+        @panic("TODO");
+    }
+
+    return std.mem.readInt(u16, ttf.hmtx.?[glyph_index * 4 ..][0..2], .big);
+}
+
+fn getGlyphFromIndex(ttf: Ttf, allocator: std.mem.Allocator, glyph_index: u32) !?Glyph {
+    const glyph_offset = ttf.glyphOffsetFromIndex(glyph_index);
+
     var reader = std.Io.Reader.fixed(ttf.glyf.?[glyph_offset..]);
 
     const number_of_contours = reader.takeInt(i16, .big) catch return null;
@@ -224,7 +248,7 @@ fn getGlyphFromOffset(ttf: Ttf, allocator: std.mem.Allocator, glyph_offset: u32)
     const x_max = reader.takeInt(i16, .big) catch return null;
     const y_max = reader.takeInt(i16, .big) catch return null;
 
-    if (number_of_contours >= 0) {
+    const contours = if (number_of_contours >= 0) contours: {
         const end_points_of_contours = try allocator.alloc(u16, @intCast(number_of_contours));
         defer allocator.free(end_points_of_contours);
         for (0..@intCast(number_of_contours)) |i| {
@@ -300,16 +324,8 @@ fn getGlyphFromOffset(ttf: Ttf, allocator: std.mem.Allocator, glyph_offset: u32)
             last_contour_end = end_points_of_contours[i] + 1;
         }
 
-        return .{
-            .contours = contours,
-            .bounding_box = .{
-                .x = ttf.unitsToEm(x_min),
-                .y = ttf.unitsToEm(y_min),
-                .width = ttf.unitsToEm(x_max - x_min),
-                .height = ttf.unitsToEm(y_max - y_min),
-            },
-        };
-    } else {
+        break :contours contours;
+    } else contours: {
         var contours: std.ArrayList(Glyph.Contour) = .empty;
         errdefer contours.deinit(allocator);
 
@@ -334,8 +350,7 @@ fn getGlyphFromOffset(ttf: Ttf, allocator: std.mem.Allocator, glyph_offset: u32)
                 const x_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
                 const y_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
 
-                const component_offset = ttf.glyphOffsetFromIndex(component_index);
-                if (try ttf.getGlyphFromOffset(allocator, component_offset)) |component| {
+                if (try ttf.getGlyphFromIndex(allocator, component_index)) |component| {
                     defer component.deinit(allocator);
 
                     for (component.contours) |contour| {
@@ -355,20 +370,24 @@ fn getGlyphFromOffset(ttf: Ttf, allocator: std.mem.Allocator, glyph_offset: u32)
             if (!flags.more_components) break;
         }
 
-        return .{
-            .contours = try contours.toOwnedSlice(allocator),
-            .bounding_box = .{
-                .x = ttf.unitsToEm(x_min),
-                .y = ttf.unitsToEm(y_min),
-                .width = ttf.unitsToEm(x_max - x_min),
-                .height = ttf.unitsToEm(y_max - y_min),
-            },
-        };
-    }
+        break :contours try contours.toOwnedSlice(allocator);
+    };
+
+    const advance_width = ttf.getAdvanceWidth(glyph_index).?;
+
+    return .{
+        .contours = contours,
+        .bounding_box = .{
+            .x = ttf.unitsToEm(x_min),
+            .y = ttf.unitsToEm(y_min),
+            .width = ttf.unitsToEm(x_max - x_min),
+            .height = ttf.unitsToEm(y_max - y_min),
+        },
+        .advance_width = ttf.unitsToEm(advance_width),
+    };
 }
 
 pub fn getGlyph(ttf: Ttf, allocator: std.mem.Allocator, char: u21) !?Glyph {
     const index = ttf.glyphIndexFromCharacter(char);
-    const offset = ttf.glyphOffsetFromIndex(index);
-    return try ttf.getGlyphFromOffset(allocator, offset);
+    return try ttf.getGlyphFromIndex(allocator, index);
 }
