@@ -597,9 +597,10 @@ pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []
         renderer.framebuffers = try createFramebuffers(renderer.gc, renderer.allocator, renderer.render_pass, renderer.swapchain);
     }
 
+    // TODO: Proper support for empty draw_list
     const vertex_buffer_size_per_command = 6;
     const vertex_buffer = try renderer.gc.device.createBuffer(&.{
-        .size = @sizeOf(Vertex) * draw_list.len * vertex_buffer_size_per_command,
+        .size = @sizeOf(Vertex) * @max(draw_list.len, 1) * vertex_buffer_size_per_command,
         .usage = .{ .transfer_dst_bit = true, .vertex_buffer_bit = true },
         .sharing_mode = .exclusive,
     }, null);

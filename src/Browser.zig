@@ -50,7 +50,8 @@ pub fn init(allocator: std.mem.Allocator) !Browser {
         .current_tab_index = 0,
     };
 
-    _ = try browser.newTab();
+    const idx = try browser.newTab();
+    try browser.tabs.items[idx].view_process.send(.{ .navigate_to_url = "about:example" });
 
     return browser;
 }

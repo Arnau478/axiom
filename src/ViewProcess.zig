@@ -67,7 +67,8 @@ pub fn run(view_process: *ViewProcess) !void {
 
         if (view_process.active) {
             const about_pages = std.StaticStringMap([]const u8).initComptime(&.{
-                .{ "blank", @embedFile("about/blank.html") },
+                .{ "blank", "" },
+                .{ "example", @embedFile("about/example.html") },
             });
 
             const html_source = try engine.fetch.fetch(view_process.url, about_pages);
@@ -96,6 +97,8 @@ pub fn run(view_process: *ViewProcess) !void {
 
             const draw_list = try engine.paint.paint(view_process.allocator, box_tree);
             defer view_process.allocator.free(draw_list);
+
+            std.log.debug("Draw list length: {d} commands", .{draw_list.len});
 
             const update_end_time = std.time.milliTimestamp();
             const update_time = update_end_time - update_start_time;

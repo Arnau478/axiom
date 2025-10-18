@@ -374,7 +374,12 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
 
                     tree_constructor.insertion_mode = .before_html;
                 } else {
-                    @panic("TODO");
+                    // TODO: iframe srcdoc document
+                    // TODO: Parse error
+                    // TODO: Quicks mode
+
+                    tree_constructor.insertion_mode = .before_html;
+                    continue :mode .before_html;
                 }
             },
             .before_html => {
@@ -393,7 +398,12 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isEndTagNotWithName(token, source, &.{ "head", "body", "html", "br" })) {
                     @panic("TODO");
                 } else {
-                    @panic("TODO");
+                    const element = try tree_constructor.dom.createElement("html");
+                    try tree_constructor.dom.appendToDocument(tree_constructor.document_id, .{ .element = element });
+                    try tree_constructor.open_elements.append(tree_constructor.allocator, element);
+
+                    tree_constructor.insertion_mode = .before_head;
+                    continue :mode .before_head;
                 }
             },
             .before_head => {
@@ -412,7 +422,10 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isEndTagNotWithName(token, source, &.{ "head", "body", "html", "br" })) {
                     @panic("TODO");
                 } else {
-                    @panic("TODO");
+                    const element = try tree_constructor.insertElementForToken("head", .{ .type = .{ .start_tag = .{ .name = .{ .start = 0, .end = 4 } } } });
+                    tree_constructor.head = element;
+                    tree_constructor.insertion_mode = .in_head;
+                    continue :mode .in_head;
                 }
             },
             .in_head => {
@@ -456,7 +469,9 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isStartTagWithName(token, source, &.{"head"}) or isEndTag(token)) {
                     @panic("TODO");
                 } else {
-                    @panic("TODO");
+                    _ = tree_constructor.open_elements.pop().?;
+                    tree_constructor.insertion_mode = .after_head;
+                    continue :mode .after_head;
                 }
             },
             .in_head_noscript => @panic("TODO"),
@@ -484,7 +499,9 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 {
                     @panic("TODO");
                 } else {
-                    @panic("TODO");
+                    _ = try tree_constructor.insertElementForToken("body", .{ .type = .{ .start_tag = .{ .name = .{ .start = 0, .end = 4 } } } });
+                    tree_constructor.insertion_mode = .in_body;
+                    continue :mode .in_body;
                 }
             },
             .in_body => {
@@ -512,7 +529,9 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isStartTagWithName(token, source, &.{"frameset"})) {
                     @panic("TODO");
                 } else if (isEof(token)) {
-                    @panic("TODO");
+                    // TODO: Stack of template insertion modes
+                    // TODO: Check parse error
+                    // Done
                 } else if (isEndTagWithName(token, source, &.{"body"})) {
                     if (!tree_constructor.hasElementInScope("body")) {
                         @panic("TODO");
