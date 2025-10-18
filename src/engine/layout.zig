@@ -158,14 +158,17 @@ pub fn generateBox(allocator: std.mem.Allocator, dom: Dom, style_tree: style.Sty
                     const glyph = (try font.getGlyph(allocator, cp)).?;
                     defer glyph.deinit(allocator);
 
-                    const buffer = try Font.Buffer.init(
-                        allocator,
-                        @intFromFloat(glyph.bounding_box.width * @as(f32, @floatFromInt(font_size))),
-                        @intFromFloat(glyph.bounding_box.height * @as(f32, @floatFromInt(font_size))),
-                    );
-                    errdefer buffer.deinit(allocator);
+                    var buffer: ?Font.Buffer = null;
+                    if (glyph.contours.len > 0) {
+                        buffer = try Font.Buffer.init(
+                            allocator,
+                            @intFromFloat(glyph.bounding_box.width * @as(f32, @floatFromInt(font_size))),
+                            @intFromFloat(glyph.bounding_box.height * @as(f32, @floatFromInt(font_size))),
+                        );
+                        errdefer buffer.?.deinit(allocator);
 
-                    glyph.rasterize(buffer, font_size);
+                        glyph.rasterize(buffer.?, font_size);
+                    }
 
                     try principal_box.text.append(allocator, .{
                         .buffer = buffer,
@@ -209,6 +212,7 @@ pub fn reflowBox(box: *Box, containing_block: Rect, viewport_size: Size) void {
             };
 
             cursor_x += component.advance_width;
+            remaining_space -= component.advance_width;
         }
 
         box.box_model = .{

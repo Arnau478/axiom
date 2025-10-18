@@ -20,7 +20,7 @@ text: std.ArrayList(TextComponent),
 pub const TextComponent = struct {
     component_offset: Point = .zero,
     glyph_offset: Point,
-    buffer: Font.Buffer,
+    buffer: ?Font.Buffer,
     advance_width: f32,
 
     pub fn bufferOffset(component: TextComponent) Point {
@@ -53,6 +53,10 @@ pub fn init(allocator: std.mem.Allocator, computed_style: style.ComputedStyle, d
 }
 
 pub fn deinit(box: *Box, allocator: std.mem.Allocator) void {
+    for (box.text.items) |component| {
+        if (component.buffer) |buffer| buffer.deinit(allocator);
+    }
+    box.text.deinit(allocator);
     for (box.children.items) |child| {
         child.deinit(allocator);
     }

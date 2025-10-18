@@ -209,17 +209,25 @@ fn glyphIndexFromCharacter(ttf: Ttf, char: u21) u32 {
     }
 }
 
-fn glyphOffsetFromIndex(ttf: Ttf, index: usize) u32 {
+fn glyphOffsetFromIndex(ttf: Ttf, index: usize) ?u32 {
     switch (ttf.header().?.index_to_loc_format) {
         0 => {
             const offset = index * 2;
+
             const bytes = ttf.loca.?[offset .. offset + 2];
+            const next_bytes = ttf.loca.?[offset + 2 .. offset + 4];
+            if (std.mem.eql(u8, bytes, next_bytes)) return null;
+
             const value = std.mem.readInt(u16, bytes[0..2], .big);
             return @as(u32, value) * 2;
         },
         1 => {
             const offset = index * 4;
+
             const bytes = ttf.loca.?[offset .. offset + 4];
+            const next_bytes = ttf.loca.?[offset + 4 .. offset + 8];
+            if (std.mem.eql(u8, bytes, next_bytes)) return null;
+
             return std.mem.readInt(u32, bytes[0..4], .big);
         },
         else => unreachable,
@@ -238,153 +246,165 @@ fn getAdvanceWidth(ttf: Ttf, glyph_index: u32) ?u16 {
 }
 
 fn getGlyphFromIndex(ttf: Ttf, allocator: std.mem.Allocator, glyph_index: u32) !?Glyph {
-    const glyph_offset = ttf.glyphOffsetFromIndex(glyph_index);
+    if (ttf.glyphOffsetFromIndex(glyph_index)) |glyph_offset| {
+        var reader = std.Io.Reader.fixed(ttf.glyf.?[glyph_offset..]);
 
-    var reader = std.Io.Reader.fixed(ttf.glyf.?[glyph_offset..]);
+        const number_of_contours = reader.takeInt(i16, .big) catch return null;
+        const x_min = reader.takeInt(i16, .big) catch return null;
+        const y_min = reader.takeInt(i16, .big) catch return null;
+        const x_max = reader.takeInt(i16, .big) catch return null;
+        const y_max = reader.takeInt(i16, .big) catch return null;
 
-    const number_of_contours = reader.takeInt(i16, .big) catch return null;
-    const x_min = reader.takeInt(i16, .big) catch return null;
-    const y_min = reader.takeInt(i16, .big) catch return null;
-    const x_max = reader.takeInt(i16, .big) catch return null;
-    const y_max = reader.takeInt(i16, .big) catch return null;
-
-    const contours = if (number_of_contours >= 0) contours: {
-        const end_points_of_contours = try allocator.alloc(u16, @intCast(number_of_contours));
-        defer allocator.free(end_points_of_contours);
-        for (0..@intCast(number_of_contours)) |i| {
-            end_points_of_contours[i] = reader.takeInt(u16, .big) catch return null;
-        }
-
-        const number_of_points = if (number_of_contours == 0) 0 else end_points_of_contours[end_points_of_contours.len - 1] + 1;
-
-        const instruction_length = reader.takeInt(u16, .big) catch return null;
-        reader.discardAll(instruction_length) catch return null;
-
-        const flags = try allocator.alloc(packed struct(u8) {
-            on_curve: bool,
-            x_short: bool,
-            y_short: bool,
-            repeat: bool,
-            sign_or_skip_x: bool,
-            sign_or_skip_y: bool,
-            rsv: u2 = 0,
-        }, number_of_points);
-        errdefer allocator.free(flags);
-
-        const points = try allocator.alloc(Glyph.Point, number_of_points);
-        defer allocator.free(points);
-
-        var repeat_count: usize = 0;
-        for (0..number_of_points) |i| {
-            if (repeat_count > 0) {
-                flags[i] = flags[i - 1];
-                repeat_count -= 1;
-            } else {
-                flags[i] = @bitCast(reader.takeByte() catch return null);
-                if (flags[i].repeat) {
-                    repeat_count = reader.takeByte() catch return null;
-                }
-            }
-        }
-
-        var last_x: f32 = 0;
-        for (0..number_of_points) |i| {
-            points[i].x = last_x;
-            if (flags[i].x_short) {
-                points[i].x += ttf.unitsToEm(@as(i16, reader.takeByte() catch return null) * @as(i16, if (flags[i].sign_or_skip_x) 1 else -1));
-            } else {
-                if (!flags[i].sign_or_skip_x) {
-                    points[i].x += ttf.unitsToEm(reader.takeInt(i16, .big) catch return null);
-                }
+        const contours = if (number_of_contours >= 0) contours: {
+            const end_points_of_contours = try allocator.alloc(u16, @intCast(number_of_contours));
+            defer allocator.free(end_points_of_contours);
+            for (0..@intCast(number_of_contours)) |i| {
+                end_points_of_contours[i] = reader.takeInt(u16, .big) catch return null;
             }
 
-            last_x = points[i].x;
-        }
+            const number_of_points = if (number_of_contours == 0) 0 else end_points_of_contours[end_points_of_contours.len - 1] + 1;
 
-        var last_y: f32 = 0;
-        for (0..number_of_points) |i| {
-            points[i].y = last_y;
-            if (flags[i].y_short) {
-                points[i].y += ttf.unitsToEm(@as(i16, reader.takeByte() catch return null) * @as(i16, if (flags[i].sign_or_skip_y) 1 else -1));
-            } else {
-                if (!flags[i].sign_or_skip_y) {
-                    points[i].y += ttf.unitsToEm(reader.takeInt(i16, .big) catch return null);
-                }
-            }
+            const instruction_length = reader.takeInt(u16, .big) catch return null;
+            reader.discardAll(instruction_length) catch return null;
 
-            last_y = points[i].y;
-        }
+            const flags = try allocator.alloc(packed struct(u8) {
+                on_curve: bool,
+                x_short: bool,
+                y_short: bool,
+                repeat: bool,
+                sign_or_skip_x: bool,
+                sign_or_skip_y: bool,
+                rsv: u2 = 0,
+            }, number_of_points);
+            defer allocator.free(flags);
 
-        const contours = try allocator.alloc(Glyph.Contour, @intCast(number_of_contours));
-        errdefer allocator.free(contours);
+            const points = try allocator.alloc(Glyph.Point, number_of_points);
+            defer allocator.free(points);
 
-        var last_contour_end: usize = 0;
-        for (contours, 0..) |*contour, i| {
-            contour.* = .{ .points = try allocator.dupe(Glyph.Point, points[last_contour_end..(end_points_of_contours[i] + 1)]) };
-            last_contour_end = end_points_of_contours[i] + 1;
-        }
-
-        break :contours contours;
-    } else contours: {
-        var contours: std.ArrayList(Glyph.Contour) = .empty;
-        errdefer contours.deinit(allocator);
-
-        while (true) {
-            const flags = reader.takeStruct(packed struct(u16) {
-                arg_1_and_2_are_words: bool,
-                args_are_xy_values: bool,
-                round_xy_to_grid: bool,
-                we_have_a_scale: bool,
-                obsolete: u1 = 0,
-                more_components: bool,
-                we_have_an_x_and_y_scale: bool,
-                we_have_a_two_by_two: bool,
-                we_have_instructions: bool,
-                use_my_metrics: bool,
-                overlap_compound: bool,
-                padding: u5 = 0,
-            }, .big) catch return null;
-            const component_index = reader.takeInt(u16, .big) catch return null;
-
-            if (flags.args_are_xy_values) {
-                const x_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
-                const y_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
-
-                if (try ttf.getGlyphFromIndex(allocator, component_index)) |component| {
-                    defer component.deinit(allocator);
-
-                    for (component.contours) |contour| {
-                        const points = try allocator.dupe(Glyph.Point, contour.points);
-                        errdefer allocator.free(points);
-
-                        for (points) |*point| {
-                            point.x += ttf.unitsToEm(x_offset);
-                            point.y += ttf.unitsToEm(y_offset);
-                        }
-
-                        try contours.append(allocator, .{ .points = points });
+            var repeat_count: usize = 0;
+            for (0..number_of_points) |i| {
+                if (repeat_count > 0) {
+                    flags[i] = flags[i - 1];
+                    repeat_count -= 1;
+                } else {
+                    flags[i] = @bitCast(reader.takeByte() catch return null);
+                    if (flags[i].repeat) {
+                        repeat_count = reader.takeByte() catch return null;
                     }
                 }
-            } else @panic("TODO");
+            }
 
-            if (!flags.more_components) break;
-        }
+            var last_x: f32 = 0;
+            for (0..number_of_points) |i| {
+                points[i].x = last_x;
+                if (flags[i].x_short) {
+                    points[i].x += ttf.unitsToEm(@as(i16, reader.takeByte() catch return null) * @as(i16, if (flags[i].sign_or_skip_x) 1 else -1));
+                } else {
+                    if (!flags[i].sign_or_skip_x) {
+                        points[i].x += ttf.unitsToEm(reader.takeInt(i16, .big) catch return null);
+                    }
+                }
 
-        break :contours try contours.toOwnedSlice(allocator);
-    };
+                last_x = points[i].x;
+            }
 
-    const advance_width = ttf.getAdvanceWidth(glyph_index).?;
+            var last_y: f32 = 0;
+            for (0..number_of_points) |i| {
+                points[i].y = last_y;
+                if (flags[i].y_short) {
+                    points[i].y += ttf.unitsToEm(@as(i16, reader.takeByte() catch return null) * @as(i16, if (flags[i].sign_or_skip_y) 1 else -1));
+                } else {
+                    if (!flags[i].sign_or_skip_y) {
+                        points[i].y += ttf.unitsToEm(reader.takeInt(i16, .big) catch return null);
+                    }
+                }
 
-    return .{
-        .contours = contours,
-        .bounding_box = .{
-            .x = ttf.unitsToEm(x_min),
-            .y = ttf.unitsToEm(y_min),
-            .width = ttf.unitsToEm(x_max - x_min),
-            .height = ttf.unitsToEm(y_max - y_min),
-        },
-        .advance_width = ttf.unitsToEm(advance_width),
-    };
+                last_y = points[i].y;
+            }
+
+            const contours = try allocator.alloc(Glyph.Contour, @intCast(number_of_contours));
+            errdefer allocator.free(contours);
+
+            var last_contour_end: usize = 0;
+            for (contours, 0..) |*contour, i| {
+                contour.* = .{ .points = try allocator.dupe(Glyph.Point, points[last_contour_end..(end_points_of_contours[i] + 1)]) };
+                last_contour_end = end_points_of_contours[i] + 1;
+            }
+
+            break :contours contours;
+        } else contours: {
+            var contours: std.ArrayList(Glyph.Contour) = .empty;
+            errdefer contours.deinit(allocator);
+
+            while (true) {
+                const flags = reader.takeStruct(packed struct(u16) {
+                    arg_1_and_2_are_words: bool,
+                    args_are_xy_values: bool,
+                    round_xy_to_grid: bool,
+                    we_have_a_scale: bool,
+                    obsolete: u1 = 0,
+                    more_components: bool,
+                    we_have_an_x_and_y_scale: bool,
+                    we_have_a_two_by_two: bool,
+                    we_have_instructions: bool,
+                    use_my_metrics: bool,
+                    overlap_compound: bool,
+                    padding: u5 = 0,
+                }, .big) catch return null;
+                const component_index = reader.takeInt(u16, .big) catch return null;
+
+                if (flags.args_are_xy_values) {
+                    const x_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
+                    const y_offset = if (flags.arg_1_and_2_are_words) reader.takeInt(i16, .big) catch return null else @as(i16, reader.takeByteSigned() catch return null);
+
+                    if (try ttf.getGlyphFromIndex(allocator, component_index)) |component| {
+                        defer component.deinit(allocator);
+
+                        for (component.contours) |contour| {
+                            const points = try allocator.dupe(Glyph.Point, contour.points);
+                            errdefer allocator.free(points);
+
+                            for (points) |*point| {
+                                point.x += ttf.unitsToEm(x_offset);
+                                point.y += ttf.unitsToEm(y_offset);
+                            }
+
+                            try contours.append(allocator, .{ .points = points });
+                        }
+                    }
+                } else @panic("TODO");
+
+                if (!flags.more_components) break;
+            }
+
+            break :contours try contours.toOwnedSlice(allocator);
+        };
+
+        const advance_width = ttf.getAdvanceWidth(glyph_index).?;
+
+        return .{
+            .contours = contours,
+            .bounding_box = .{
+                .x = ttf.unitsToEm(x_min),
+                .y = ttf.unitsToEm(y_min),
+                .width = ttf.unitsToEm(x_max - x_min),
+                .height = ttf.unitsToEm(y_max - y_min),
+            },
+            .advance_width = ttf.unitsToEm(advance_width),
+        };
+    } else {
+        const advance_width = ttf.getAdvanceWidth(glyph_index).?;
+        return .{
+            .contours = &.{},
+            .bounding_box = .{
+                .x = 0,
+                .y = 0,
+                .width = 0,
+                .height = 0,
+            },
+            .advance_width = ttf.unitsToEm(advance_width),
+        };
+    }
 }
 
 pub fn getGlyph(ttf: Ttf, allocator: std.mem.Allocator, char: u21) !?Glyph {

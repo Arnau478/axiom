@@ -62,17 +62,19 @@ fn paintBox(allocator: std.mem.Allocator, box: *const layout.Box, commands: *std
     // TODO: Borders
 
     for (box.text.items) |component| {
-        try commands.append(allocator, .{ .textured_rect = .{
-            .x = @intFromFloat(box.box_model.content_box.origin.add(component.bufferOffset()).x),
-            .y = @intFromFloat(box.box_model.content_box.origin.add(component.bufferOffset()).y),
-            .width = component.buffer.width,
-            .height = component.buffer.height,
-            .color = .{ .r = 255, .g = 255, .b = 255 },
-            .single_channel = true,
-            .texture_data = component.buffer.data,
-            .texture_width = component.buffer.width,
-            .texture_height = component.buffer.height,
-        } });
+        if (component.buffer) |buffer| {
+            try commands.append(allocator, .{ .textured_rect = .{
+                .x = @intFromFloat(box.box_model.content_box.origin.add(component.bufferOffset()).x),
+                .y = @intFromFloat(box.box_model.content_box.origin.add(component.bufferOffset()).y),
+                .width = buffer.width,
+                .height = buffer.height,
+                .color = .{ .r = 255, .g = 255, .b = 255 },
+                .single_channel = true,
+                .texture_data = buffer.data,
+                .texture_width = buffer.width,
+                .texture_height = buffer.height,
+            } });
+        }
     }
 
     if (build_options.paint_box_model) {
