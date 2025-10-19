@@ -28,6 +28,7 @@ display: layout.Display,
 position: layout.Position,
 background_color: value.Color,
 color: value.Color,
+font_size: value.Length,
 
 pub fn applyDeclaration(computed_style: *ComputedStyle, declaration: Stylesheet.Rule.Style.Declaration) void {
     switch (declaration) {
@@ -126,6 +127,7 @@ pub fn applyDeclaration(computed_style: *ComputedStyle, declaration: Stylesheet.
         },
         .@"background-color" => |v| computed_style.background_color = v.value,
         .color => |v| computed_style.color = v.value,
+        .@"font-size" => |v| computed_style.font_size = v.value,
     }
 }
 
@@ -157,6 +159,7 @@ pub const initial: ComputedStyle = .{
     .position = .static,
     .background_color = value.Color.builtin.transparent,
     .color = value.Color.builtin.black,
+    .font_size = .{ .magnitude = 16, .unit = .px },
 };
 
 pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
@@ -179,5 +182,6 @@ pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
         .position = initial.position,
         .background_color = initial.background_color,
         .color = computed_style.color,
+        .font_size = computed_style.font_size,
     };
 }

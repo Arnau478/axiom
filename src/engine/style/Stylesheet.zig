@@ -78,6 +78,7 @@ pub const Rule = union(enum) {
             position: Property.position.Value(),
             @"background-color": Property.@"background-color".Value(),
             color: Property.color.Value(),
+            @"font-size": Property.@"font-size".Value(),
 
             pub const Property = enum {
                 margin,
@@ -106,6 +107,8 @@ pub const Rule = union(enum) {
                 @"background-color",
 
                 color,
+
+                @"font-size",
 
                 pub fn byName(name: []const u8) ?Property {
                     for (std.enums.values(Property)) |v| {
@@ -209,6 +212,9 @@ pub const Rule = union(enum) {
                         },
                         .color => struct {
                             value: value.Color,
+                        },
+                        .@"font-size" => struct {
+                            value: value.Length,
                         },
                     };
                 }

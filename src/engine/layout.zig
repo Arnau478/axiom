@@ -153,7 +153,7 @@ pub fn generateBox(allocator: std.mem.Allocator, dom: Dom, style_tree: style.Sty
                 std.log.debug("\"{s}\"", .{text_data});
 
                 while (iter.nextCodepoint()) |cp| {
-                    const font_size = 64; // TODO
+                    const font_size = computed_style.font_size.toPx();
 
                     const glyph = (try font.getGlyph(allocator, cp)).?;
                     defer glyph.deinit(allocator);
@@ -162,8 +162,8 @@ pub fn generateBox(allocator: std.mem.Allocator, dom: Dom, style_tree: style.Sty
                     if (glyph.contours.len > 0) {
                         buffer = try Font.Buffer.init(
                             allocator,
-                            @intFromFloat(glyph.bounding_box.width * @as(f32, @floatFromInt(font_size))),
-                            @intFromFloat(glyph.bounding_box.height * @as(f32, @floatFromInt(font_size))),
+                            @intFromFloat(glyph.bounding_box.width * font_size),
+                            @intFromFloat(glyph.bounding_box.height * font_size),
                         );
                         errdefer buffer.?.deinit(allocator);
 
@@ -173,10 +173,10 @@ pub fn generateBox(allocator: std.mem.Allocator, dom: Dom, style_tree: style.Sty
                     try principal_box.text.append(allocator, .{
                         .buffer = buffer,
                         .glyph_offset = .{
-                            .x = glyph.bounding_box.x * @as(f32, @floatFromInt(font_size)),
-                            .y = (glyph.bounding_box.y + glyph.bounding_box.height) * -@as(f32, @floatFromInt(font_size)),
+                            .x = glyph.bounding_box.x * font_size,
+                            .y = (glyph.bounding_box.y + glyph.bounding_box.height) * -font_size,
                         },
-                        .advance_width = glyph.advance_width * @as(f32, @floatFromInt(font_size)),
+                        .advance_width = glyph.advance_width * font_size,
                     });
                 }
             },
@@ -193,7 +193,7 @@ pub fn reflow(root: *Box, viewport_size: Size) void {
 
 pub fn reflowBox(box: *Box, containing_block: Rect, viewport_size: Size) void {
     if (box.dom_node.? == .text) {
-        const line_height = 64; // TODO
+        const line_height = box.computed_style.font_size.toPx() * 1.2; // TODO
 
         var cursor_x: f32 = 0;
         var line_count: usize = 0;

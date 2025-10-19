@@ -1,15 +1,19 @@
 html, address, blockquote, body, dd, div, dl, dt, fieldset, form, h1, h2, h3, h4, h5, h6, ol, p, ul, hr, menu, pre {
-    display: block;
+  display: block;
 }
 
 li {
-    display: list-item;
+  display: list-item;
 }
 
 head {
-    display: none;
+  display: none;
 }
 
 body {
-    margin: 8px;
+  margin: 8px;
+}
+
+h1 {
+  font-size: 32px;
 }

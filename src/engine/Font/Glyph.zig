@@ -31,14 +31,14 @@ pub fn deinit(glyph: Glyph, allocator: std.mem.Allocator) void {
     allocator.free(glyph.contours);
 }
 
-pub fn rasterize(glyph: Glyph, buffer: Buffer, size: usize) void {
-    std.debug.assert(buffer.width >= @as(usize, @intFromFloat(glyph.bounding_box.width * @as(f32, @floatFromInt(size)))));
-    std.debug.assert(buffer.height >= @as(usize, @intFromFloat(glyph.bounding_box.height * @as(f32, @floatFromInt(size)))));
+pub fn rasterize(glyph: Glyph, buffer: Buffer, size: f32) void {
+    std.debug.assert(buffer.width >= @as(usize, @intFromFloat(glyph.bounding_box.width * size)));
+    std.debug.assert(buffer.height >= @as(usize, @intFromFloat(glyph.bounding_box.height * size)));
 
     for (0..buffer.height) |buffer_y| {
         for (0..buffer.width) |buffer_x| {
-            const x = (@as(f32, @floatFromInt(buffer_x)) + 0.5) / @as(f32, @floatFromInt(size)) + glyph.bounding_box.x;
-            const y = (@as(f32, @floatFromInt(buffer.height - buffer_y - 1)) + 0.5) / @as(f32, @floatFromInt(size)) + glyph.bounding_box.y;
+            const x = (@as(f32, @floatFromInt(buffer_x)) + 0.5) / size + glyph.bounding_box.x;
+            const y = (@as(f32, @floatFromInt(buffer.height - buffer_y - 1)) + 0.5) / size + glyph.bounding_box.y;
 
             var inside = false;
 
