@@ -68,7 +68,11 @@ fn paintBox(allocator: std.mem.Allocator, box: *const layout.Box, commands: *std
                 .y = @intFromFloat(box.box_model.content_box.origin.add(component.bufferOffset()).y),
                 .width = buffer.width,
                 .height = buffer.height,
-                .color = .{ .r = 255, .g = 255, .b = 255 },
+                .color = .{
+                    .r = box.computed_style.color.r,
+                    .g = box.computed_style.color.g,
+                    .b = box.computed_style.color.b,
+                },
                 .single_channel = true,
                 .texture_data = buffer.data,
                 .texture_width = buffer.width,

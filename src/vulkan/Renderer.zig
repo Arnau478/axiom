@@ -620,7 +620,7 @@ pub fn drawFrame(renderer: *Renderer, width: usize, height: usize, draw_list: []
             .extent = renderer.swapchain.extent,
         },
         .clear_value_count = 1,
-        .p_clear_values = @ptrCast(&vk.ClearValue{ .color = .{ .float_32 = .{ 0, 0, 0, 1 } } }),
+        .p_clear_values = @ptrCast(&vk.ClearValue{ .color = .{ .float_32 = .{ 1, 1, 1, 1 } } }),
     }, .@"inline");
 
     renderer.gc.device.cmdBindPipeline(renderer.command_buffer, .graphics, renderer.pipeline);

@@ -27,6 +27,7 @@ height: ?value.LengthPercentage,
 display: layout.Display,
 position: layout.Position,
 background_color: value.Color,
+color: value.Color,
 
 pub fn applyDeclaration(computed_style: *ComputedStyle, declaration: Stylesheet.Rule.Style.Declaration) void {
     switch (declaration) {
@@ -124,6 +125,7 @@ pub fn applyDeclaration(computed_style: *ComputedStyle, declaration: Stylesheet.
             .fixed => .fixed,
         },
         .@"background-color" => |v| computed_style.background_color = v.value,
+        .color => |v| computed_style.color = v.value,
     }
 }
 
@@ -154,10 +156,10 @@ pub const initial: ComputedStyle = .{
     .display = .@"inline",
     .position = .static,
     .background_color = value.Color.builtin.transparent,
+    .color = value.Color.builtin.black,
 };
 
 pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
-    _ = computed_style;
     return .{
         .margin_top = initial.margin_top,
         .margin_right = initial.margin_right,
@@ -176,5 +178,6 @@ pub fn inheritedOrInitial(computed_style: ComputedStyle) ComputedStyle {
         .display = initial.display,
         .position = initial.position,
         .background_color = initial.background_color,
+        .color = computed_style.color,
     };
 }
