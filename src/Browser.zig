@@ -50,8 +50,7 @@ pub fn init(allocator: std.mem.Allocator) !Browser {
         .current_tab_index = 0,
     };
 
-    const idx = try browser.newTab();
-    try browser.tabs.items[idx].view_process.send(.{ .navigate_to_url = "about:example" });
+    _ = try browser.newTab();
 
     return browser;
 }
@@ -90,6 +89,8 @@ pub fn run(browser: *Browser) !void {
 
         const size = browser.window.getFramebufferSize();
         try browser.currentTab().view_process.send(.{ .resize_viewport = .{ .width = @intCast(size[0]), .height = @intCast(size[1]) } });
+
+        try browser.currentTab().view_process.send(.{ .navigate_to_url = "about:example" });
 
         const draw_list = try browser.currentTab().view_process.recv(browser.allocator, .new_frame);
         defer serialize.free(browser.allocator, draw_list);

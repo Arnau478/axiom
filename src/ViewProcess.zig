@@ -51,16 +51,22 @@ pub fn run(view_process: *ViewProcess) !void {
         const request = try serialize.read(ipc.Request, view_process.allocator, stdin);
         switch (request) {
             .navigate_to_url => |url| {
+                std.log.debug("Navigating to {s}", .{url});
+
                 errdefer view_process.allocator.free(url);
 
                 view_process.allocator.free(view_process.url);
                 view_process.url = url;
             },
             .resize_viewport => |size| {
+                std.log.debug("Resizing to {d}x{d}", .{ size.width, size.height });
+
                 view_process.viewport_width = size.width;
                 view_process.viewport_height = size.height;
             },
             .activate => {
+                std.log.debug("Activating view", .{});
+
                 view_process.active = true;
             },
         }

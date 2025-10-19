@@ -117,6 +117,15 @@ fn insertCharacter(tree_constructor: *TreeConstructor, data: []const u8) !void {
     );
 }
 
+fn popElementsUntilPopped(tree_constructor: *TreeConstructor, names: []const []const u8) void {
+    while (true) {
+        const element = tree_constructor.open_elements.pop() orelse @panic("TODO");
+        for (names) |name| {
+            if (std.mem.eql(u8, tree_constructor.dom.getElement(element).?.tag_name, name)) return;
+        }
+    }
+}
+
 fn reconstructActiveFormattingElements(tree_constructor: *TreeConstructor) void {
     _ = tree_constructor;
     // TODO
@@ -140,6 +149,16 @@ fn generateImpliedEndTagsExcept(tree_constructor: *TreeConstructor, exception: ?
     }
 }
 
+fn closePElement(tree_constructor: *TreeConstructor) void {
+    tree_constructor.generateImpliedEndTagsExcept("p");
+
+    if (!std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "p")) {
+        @panic("TODO");
+    }
+
+    tree_constructor.popElementsUntilPopped(&.{"p"});
+}
+
 fn hasElementInSpecificScope(tree_constructor: TreeConstructor, name: []const u8, scope: []const []const u8) bool {
     var i: usize = 0;
     while (true) {
@@ -159,9 +178,13 @@ fn hasElementInSpecificScope(tree_constructor: TreeConstructor, name: []const u8
     }
 }
 
+fn hasElementInButtonScope(tree_constructor: TreeConstructor, name: []const u8) bool {
+    // TODO: MathML and SVG
+    return tree_constructor.hasElementInSpecificScope(name, &.{ "applet", "caption", "html", "table", "td", "th", "marquee", "object", "select", "template", "button" });
+}
+
 fn hasElementInScope(tree_constructor: TreeConstructor, name: []const u8) bool {
     // TODO: MathML and SVG
-
     return tree_constructor.hasElementInSpecificScope(name, &.{ "applet", "caption", "html", "table", "td", "th", "marquee", "object", "select", "template" });
 }
 
@@ -442,7 +465,11 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isStartTagWithName(token, source, &.{"meta"})) {
                     @panic("TODO");
                 } else if (isStartTagWithName(token, source, &.{"title"})) {
-                    @panic("TODO");
+                    _ = try tree_constructor.insertElementForToken(source, token);
+
+                    tokenizer.state = .rcdata;
+                    tree_constructor.original_insertion_mode = tree_constructor.insertion_mode;
+                    tree_constructor.insertion_mode = .text;
                 } else if ((isStartTagWithName(token, source, &.{"noscript"}) and tree_constructor.scripting_enabled) or
                     isStartTagWithName(token, source, &.{ "noframes", "style" }))
                 {
@@ -554,9 +581,27 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isEndTagWithName(token, source, &.{"html"})) {
                     @panic("TODO");
                 } else if (isStartTagWithName(token, source, &.{ "address", "article", "aside", "blockquote", "center", "details", "dialog", "dir", "div", "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "main", "menu", "nav", "ol", "p", "search", "section", "summary", "ul" })) {
-                    @panic("TODO");
+                    if (tree_constructor.hasElementInButtonScope("p")) {
+                        tree_constructor.closePElement();
+                    }
+
+                    _ = try tree_constructor.insertElementForToken(source, token);
                 } else if (isStartTagWithName(token, source, &.{ "h1", "h2", "h3", "h4", "h5", "h6" })) {
-                    @panic("TODO");
+                    if (tree_constructor.hasElementInButtonScope("p")) {
+                        tree_constructor.closePElement();
+                    }
+
+                    if (std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "h1") or
+                        std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "h2") or
+                        std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "h3") or
+                        std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "h4") or
+                        std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "h5") or
+                        std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, "h6"))
+                    {
+                        @panic("TODO");
+                    }
+
+                    _ = try tree_constructor.insertElementForToken(source, token);
                 } else if (isStartTagWithName(token, source, &.{ "pre", "listing" })) {
                     @panic("TODO");
                 } else if (isStartTagWithName(token, source, &.{"form"})) {
@@ -574,13 +619,33 @@ pub fn dispatch(tree_constructor: *TreeConstructor, tokenizer: *Tokenizer, sourc
                 } else if (isEndTagWithName(token, source, &.{"form"})) {
                     @panic("TODO");
                 } else if (isEndTagWithName(token, source, &.{"p"})) {
-                    @panic("TODO");
+                    if (!tree_constructor.hasElementInButtonScope("p")) {
+                        @panic("TODO");
+                    }
+
+                    tree_constructor.closePElement();
                 } else if (isEndTagWithName(token, source, &.{"li"})) {
                     @panic("TODO");
                 } else if (isEndTagWithName(token, source, &.{ "dd", "dt" })) {
                     @panic("TODO");
                 } else if (isEndTagWithName(token, source, &.{ "h1", "h2", "h3", "h4", "h5", "h6" })) {
-                    @panic("TODO");
+                    if (!tree_constructor.hasElementInScope("h1") and
+                        !tree_constructor.hasElementInScope("h2") and
+                        !tree_constructor.hasElementInScope("h3") and
+                        !tree_constructor.hasElementInScope("h4") and
+                        !tree_constructor.hasElementInScope("h5") and
+                        !tree_constructor.hasElementInScope("h6"))
+                    {
+                        @panic("TODO");
+                    } else {
+                        tree_constructor.generateImpliedEndTagsExcept(null);
+
+                        if (!std.mem.eql(u8, tree_constructor.dom.getElement(tree_constructor.currentElement().?).?.tag_name, token.?.type.end_tag.name.slice(source))) {
+                            @panic("TODO");
+                        }
+
+                        tree_constructor.popElementsUntilPopped(&.{ "h1", "h2", "h3", "h4", "h5", "h6" });
+                    }
                 } else if (isStartTagWithName(token, source, &.{"a"})) {
                     @panic("TODO");
                 } else if (isStartTagWithName(token, source, &.{ "b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u" })) {

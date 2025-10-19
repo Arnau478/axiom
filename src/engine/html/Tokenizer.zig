@@ -10,10 +10,14 @@ last_start_tag_name: ?[]const u8 = null,
 
 const State = union(enum) {
     data,
+    rcdata,
     rawtext,
     tag_open,
     end_tag_open,
     tag_name: Token,
+    rcdata_less_than_sign,
+    rcdata_end_tag_open,
+    rcdata_end_tag_name: Token.Type.Tag,
     rawtext_less_than_sign,
     rawtext_end_tag_open,
     rawtext_end_tag_name: Token.Type.Tag,
@@ -92,6 +96,26 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
                 return null;
             }
         },
+        .rcdata => {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '&' => @panic("TODO"),
+                '<' => continue :state .rcdata_less_than_sign,
+                0 => @panic("TODO"),
+                else => {
+                    while (tokenizer.nextCodepointSlice() != null and switch (tokenizer.nextCodepointSlice().?[0]) {
+                        '&', '<', 0 => false,
+                        else => true,
+                    }) {
+                        _ = tokenizer.consumeCodepoint().?;
+                    }
+                    return .{ .type = .{ .character = .{ .start = start_pos, .end = tokenizer.idx } } };
+                },
+            } else {
+                return null;
+            }
+        },
         .rawtext => {
             const start_pos = tokenizer.idx;
             const codepoint = tokenizer.consumeCodepoint();
@@ -150,6 +174,39 @@ pub fn next(tokenizer: *Tokenizer) ?Token {
                     }
                     continue :state .{ .tag_name = t };
                 },
+            } else @panic("TODO");
+        },
+        .rcdata_less_than_sign => {
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '/' => continue :state .rcdata_end_tag_open,
+                else => @panic("TODO"),
+            } else @panic("TODO");
+        },
+        .rcdata_end_tag_open => {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                'A'...'Z', 'a'...'z' => continue :state .{ .rcdata_end_tag_name = .{ .name = .{ .start = start_pos, .end = start_pos } } },
+                else => @panic("TODO"),
+            } else @panic("TODO");
+        },
+        .rcdata_end_tag_name => |token| {
+            const start_pos = tokenizer.idx;
+            const codepoint = tokenizer.consumeCodepoint();
+            if (codepoint) |cp| switch (cp) {
+                '\t', '\n', 0x0C, ' ' => @panic("TODO"),
+                '/' => @panic("TODO"),
+                '>' => {
+                    var t = token;
+                    t.name.end = start_pos;
+                    if (tokenizer.isAppropriateEndTag(t)) {
+                        tokenizer.state = .data;
+                        return .{ .type = .{ .end_tag = t } };
+                    } else @panic("TODO");
+                },
+                'A'...'Z', 'a'...'z' => continue :state .{ .rcdata_end_tag_name = token },
+                else => @panic("TODO"),
             } else @panic("TODO");
         },
         .rawtext_less_than_sign => {
